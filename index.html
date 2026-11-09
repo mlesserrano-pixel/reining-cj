@@ -1022,7 +1022,7 @@ const PROM = (() => {
     let h = baseH(x, z);
     const d = riverD(x, z); if (d < 5){ const k = clamp01(d/5); h = mixc(-1.6, h, k*k*(3-2*k)); }
     const l = lakeD(x, z); if (l < 0){ const k = clamp01(-l/5); h = mixc(h, LAKE_Y - .55, k*k*(3-2*k)); }       // lac : l'eau arrive aux genoux
-    const w = caveWD(x, z); if (w < 2.5){ const k = clamp01(1 - w/2.5); h = mixc(h, -1.2, k*k*(3-2*k)); }        // rivière souterraine
+    const w = caveWD(x, z); if (w < 2.5){ const k = clamp01(1 - w/2.5); h = mixc(h, -.85, k*k*(3-2*k)); }        // rivière souterraine, à hauteur de genou
     const e = outsideD(x, z);
     if (e > 0) h += Math.min(e, 160)*.12*(.6 + .8*fbm(pn, x/60+50, z/60+50, 4096, 3));
     return h;
@@ -1079,7 +1079,7 @@ const PROM = (() => {
   { // terrain détaillé de la rallonge (sans recouvrir celui de la prairie d'origine)
     const xs = EXT.map(p => p[0]), zs = EXT.map(p => p[1]), x0 = Math.min(...xs) - 16, x1 = Math.max(...xs) + 16, z0 = Math.min(...zs) - 16, z1 = Math.max(...zs) + 16;
     terrainMesh(x1-x0, z1-z0, Math.round((x1-x0)/1.1), Math.round((z1-z0)/1.1), 40*(x1-x0)/(2*HX+28), false, (x0+x1)/2, (z0+z1)/2,
-      (x, z) => !(Math.abs(x) < HX+14 && Math.abs(z) < HZ+14) && (inExt(x, z) || extD(x, z) < 16));
+      (x, z) => !(Math.abs(x) < HX+12.5 && Math.abs(z) < HZ+12.5) && (inExt(x, z) || extD(x, z) < 16)).position.y = -.03;   // recouvre le bord de la prairie, juste en dessous
   }
 
   // ---- rivière et lac
@@ -1441,18 +1441,18 @@ const PROM = (() => {
     const needleMat = new THREE.MeshStandardMaterial({map:needleT.map, bumpMap:needleT.bump, bumpScale:.3, roughness:.95, side:THREE.DoubleSide});
     const darkLeaf = leafMat.clone();
     const spruce = [], broad = [];
-    for (let k=0;k<6000 && spruce.length + broad.length < 820;k++){
+    for (let k=0;k<9000 && spruce.length + broad.length < 560;k++){
       const x = fcx + (ER()-.5)*2*frx, z = fcz + (ER()-.5)*2*frz, fd = forestD(x, z);
       if (fd > 1.5 || !inExt(x, z) || extD(x, z, true) < 2 || trailD(x, z) < 2.6) continue;
-      if ([...spruce, ...broad].some(([a, b]) => Math.abs(a-x) < 3 && Math.abs(b-z) < 3 && Math.hypot(a-x, b-z) < 3)) continue;
+      if ([...spruce, ...broad].some(([a, b]) => Math.abs(a-x) < 4.3 && Math.abs(b-z) < 4.3 && Math.hypot(a-x, b-z) < 4.3)) continue;
       (ER() < .62 ? spruce : broad).push([x, z]);
     }
     const sm = new THREE.InstancedMesh(conGeo, needleMat, spruce.length), st = new THREE.InstancedMesh(trunkGeo, trunkMat, spruce.length + broad.length);
     spruce.forEach(([x, z], i) => { const s = 1.5 + ER()*1.1, h = 1.9 + ER()*.8, lift = 4.2 + ER()*1.5; q.setFromAxisAngle(up, ER()*6.3); sv.set(s, s*h, s); pv.set(x, groundH(x, z) + lift, z);   // premières branches à 4-6 m : on voit entre les troncs m4.compose(pv, q, sv); sm.setMatrixAt(i, m4); cc.setHSL(.36 + (ER()-.5)*.04, .25 + ER()*.15, .3 + ER()*.12); sm.setColorAt(i, cc);
-      sv.set(.6, lift + 2 + s*h*2, .6); pv.set(x, groundH(x, z) - .1, z); m4.compose(pv, q, sv); st.setMatrixAt(i, m4); OBST.push([x, z, .45]); });
+      sv.set(.6, lift + 2 + s*h*2, .6); pv.set(x, groundH(x, z) - .1, z); m4.compose(pv, q, sv); st.setMatrixAt(i, m4); OBST.push([x, z, .3]); });
     const bm = new THREE.InstancedMesh(crown(77, 6), darkLeaf, broad.length);
     broad.forEach(([x, z], i) => { const k = 2.4 + ER()*1.4, th = 7.5 + ER()*3; q.setFromAxisAngle(up, ER()*6.3); sv.set(.55 + k*.08, th + k*.4, .55 + k*.08); pv.set(x, groundH(x, z) - .1, z); m4.compose(pv, q, sv); st.setMatrixAt(spruce.length + i, m4);
-      sv.set(k, k*1.1, k); pv.set(x, groundH(x, z) + th + k*.5, z); m4.compose(pv, q, sv); bm.setMatrixAt(i, m4); cc.setHSL(.27 + (ER()-.5)*.05, .3 + ER()*.15, .16 + ER()*.08); bm.setColorAt(i, cc); OBST.push([x, z, .45]); });
+      sv.set(k, k*1.1, k); pv.set(x, groundH(x, z) + th + k*.5, z); m4.compose(pv, q, sv); bm.setMatrixAt(i, m4); cc.setHSL(.27 + (ER()-.5)*.05, .3 + ER()*.15, .16 + ER()*.08); bm.setColorAt(i, cc); OBST.push([x, z, .3]); });
     group.add(sm, st, bm);
     // fougères et sous-bois
     const fernT = canvasTex(128, 128, (x, w, h) => { const rr = rng(5151); for (let f=0; f<5; f++){ const a = -Math.PI/2 + (f-2)*.42, L = 50 + rr()*14; x.strokeStyle = '#2f4a22'; x.lineWidth = 2; x.beginPath(); x.moveTo(64, 128); const ex = 64 + Math.cos(a)*L*1.2, ey = 128 + Math.sin(a)*L*1.6; x.quadraticCurveTo(64 + Math.cos(a)*L*.4, 100, ex, ey); x.stroke();
@@ -1487,19 +1487,21 @@ const PROM = (() => {
     }
     return hit ? [px, pz] : null;
   }
-  const blockedWater = (x, z) => (onBridge(x, z) === null && riverD(x, z) < .6) || caveWD(x, z) < .5;
+  const blockedWater = (x, z) => onBridge(x, z) === null && riverD(x, z) < .6;   // la rivière intérieure de la grotte est guéable
   function collide(px, pz){
     let blocked = null;
     const lim = 1.5;
     if (S.x < -HX+lim && Math.abs(S.z-gz) < 2.4 && S.x > -HX-1.5){ /* dans le portail */ }
+    else if (inCave(S.x, S.z) || caveD(S.x, S.z) < 1.2){ S.x = Math.min(S.x, HX + 3); S.z = Math.max(S.z, -HZ - 3); }   // la grotte déborde un peu du plan : ses parois la ferment
     else if (!((Math.abs(S.x) < HX-lim && Math.abs(S.z) < HZ-lim) || (inExt(S.x, S.z) && extD(S.x, S.z, true) > lim)
               || (inBox(S.x, S.z) && (inExt(S.x + 2*lim, S.z) || inExt(S.x, S.z + 2*lim) || inExt(S.x + 2*lim, S.z + 2*lim))))){
       if (inUnion(px, pz)){ S.x = px; S.z = pz; } else { S.x = clamp(S.x, -HX+lim, HX-lim); S.z = clamp(S.z, -HZ+lim, HZ-lim); } blocked = 'edge'; }
     if (S.x < -HX-1.2){ S.x = -HX-1.2; blocked = 'gate'; }
     { const [fx, fz] = fwd(S.yaw); const p = bodyPush(S.x, S.z, fx, fz, .5); if (p){ S.x += p[0]; S.z += p[1]; blocked = blocked || 'tree'; } }
     {   // parois de la grotte : de l'intérieur on ne sort que par le couloir, de l'extérieur on ne traverse pas la roche
-      const wasIn = inCave(px, pz), nowIn = inCave(S.x, S.z), pass = (x, z) => corridor(x, z) || doorway(x, z);
-      if ((wasIn && !nowIn && !pass(S.x, S.z) && caveD(S.x, S.z) > -.6) || (!wasIn && !pass(S.x, S.z) && caveD(S.x, S.z) < 1.2)){ S.x = px; S.z = pz; blocked = blocked || 'rock'; }
+      // la paroi est une bande autour du contour ; on bloque seulement l'entrée dans cette bande (jamais la sortie, pour ne jamais rester coincé)
+      const wall = (x, z) => { if (corridor(x, z) || doorway(x, z)) return false; const d = caveD(x, z); return d > -.7 && d < 1.2; };
+      if (wall(S.x, S.z) && !wall(px, pz)){ S.x = px; S.z = pz; blocked = blocked || 'rock'; }
     }
     const [fx, fz] = fwd(S.yaw), hx = S.x + fx*1.8, hz = S.z + fz*1.8;
     if (blockedWater(S.x, S.z) || (blockedWater(hx, hz) && S.v > 0)){ S.x = px; S.z = pz; blocked = 'river'; }
@@ -1507,6 +1509,7 @@ const PROM = (() => {
       S.v *= .35; if (S.mode === 'slide') S.slide.v = S.v; else setGait(Math.min(S.gait, 1));
       toast(blocked === 'river' ? `${H.name} refuse l'eau : c'est trop profond${caveWD(S.x, S.z) < 6 ? '' : ', passez par le pont'}` : blocked === 'rock' ? 'De la roche : on ne passe pas par là' : blocked === 'tree' ? 'Attention, ça ne passe pas par là !' : 'Hooo, les buissons !', 'warn', 'prom-'+blocked, 3);
     }
+    collide.last = blocked;
     if (blocked === 'gate') toast('Sortie : Échap pour rentrer à l\'écurie', '', 'prom-gate', 4);
     if (typeof NPCS !== 'undefined') for (const n of NPCS.list){ if (!n.root.visible) continue; const dx = S.x - n.x, dz = S.z - n.z, d = Math.hypot(dx, dz);
       const [hx, hz] = fwd(S.yaw), along = Math.abs((-dx)*hx + (-dz)*hz)/Math.max(d, 1e-3), R2 = 1.15 + .9*along;   // côte à côte on peut se frôler, de face il faut la longueur de la tête
