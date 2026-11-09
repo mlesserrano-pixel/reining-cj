@@ -639,10 +639,10 @@ const SAND_W = W+0.4, SAND_L = L+0.4;
     const warp = (fbm(sn, u*4+20, v*4+20, 4, 3) - .5) * 5;
     const rake = Math.pow(.5 + .5*Math.sin((u*150 + warp) * Math.PI*2), 2) * (.55 + .45*fbm(sn, u*6+60, v*2+60, 6, 3));
     const packed = clamp01((big - .5)*2.5 + .5);
-    const l = .9 + .22*(mid-.5) + .16*(grain-.5) + .1*(grain2-.5) - .045*rake*(1-packed*.6) - .06*packed;
+    const l = .9 + .14*(mid-.5) + .14*(grain-.5) + .08*(grain2-.5) - .03*packed;   // sable fraîchement passé : lisse
     o[0] = (196*l) | 0; o[1] = (140*l) | 0; o[2] = (92*l) | 0;
-    o[3] = .55 + .3*(mid-.5) + .1*(grain-.5) + .1*(1-rake)*(1-packed*.7);
-  }, [3, 7], (x, xb, w, h) => {
+    o[3] = .55 + .12*(mid-.5) + .12*(grain-.5);
+  }, [3, 7], null && ((x, xb, w, h) => {
     const r = rng(12);
     for (let i=0;i<180;i++){   // empreintes de sabots, en suites de foulées
       let px = r()*w, py = r()*h; const dir = r()*Math.PI*2, n = 3 + (r()*5|0);
@@ -656,7 +656,7 @@ const SAND_W = W+0.4, SAND_L = L+0.4;
         px = (px + Math.cos(dir)*22 + w) % w; py = (py + Math.sin(dir)*22 + h) % h;
       }
     }
-  });
+  }));
   // la piste est légèrement creusée au milieu et le sable remonte le long du pare-bottes ; tons plus sombres là où on passe
   const SX = 70, SZ = 160, sg = new THREE.PlaneGeometry(SAND_W*2, SAND_L*2, SX, SZ), sp = sg.attributes.position, sc = new Float32Array(sp.count*3);
   for (let i=0;i<sp.count;i++){
@@ -664,13 +664,13 @@ const SAND_W = W+0.4, SAND_L = L+0.4;
     const de = Math.min(SAND_W - Math.abs(x), SAND_L - Math.abs(z));
     const berm = de < 1.1 ? .14 * Math.pow(1 - de/1.1, 1.6) : 0;
     sp.setZ(i, berm + .012*(fbm(sn, x/3+40, z/3+40, 4096, 2)-.5));
-    const track = Math.exp(-Math.pow((SAND_W - Math.abs(x) - 2.2)/1.6, 2)) * .1;   // piste le long du mur
+    const track = 0;
     const m = fbm(sn, x/9+90, z/9+90, 4096, 3);
     const c = 1 - track - .1*(berm/.14) + .14*(m-.5);
     sc[i*3] = c; sc[i*3+1] = c*.985; sc[i*3+2] = c*.97;
   }
   sg.setAttribute('color', new THREE.BufferAttribute(sc, 3)); sg.computeVertexNormals();
-  const s = new THREE.Mesh(sg, new THREE.MeshStandardMaterial({map:sand.map, bumpMap:sand.bump, bumpScale:.03, roughness:1, metalness:0, vertexColors:true, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2}));
+  const s = new THREE.Mesh(sg, new THREE.MeshStandardMaterial({map:sand.map, bumpMap:sand.bump, bumpScale:.012, roughness:1, metalness:0, vertexColors:true, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2}));
   s.rotation.x = -Math.PI/2; s.position.y = 0.025; s.receiveShadow = true; scene.add(s);
 }
 // Manège couvert (d'après les photos du manège du club)
@@ -1708,7 +1708,53 @@ function toast(text, kind='', key=null, cool=3){
    ========================================================= */
 let H = HORSES[selected];
 const S = {};
+// ---------- Traces dans le sable : chaque sabot qui se pose laisse son empreinte, le sliding stop laisse ses « onze »
+const sandH = (x, z) => { const de = Math.min(SAND_W - Math.abs(x), SAND_L - Math.abs(z)); return .025 + (de < 1.1 ? .14*Math.pow(1 - Math.max(0, de)/1.1, 1.6) : 0); };
+const TRACKS = (() => {
+  const printTex = canvasTex(64, 64, (x, w, h) => {
+    const g = x.createRadialGradient(32, 34, 4, 32, 34, 26); g.addColorStop(0, 'rgba(88,52,26,.7)'); g.addColorStop(.7, 'rgba(105,66,36,.5)'); g.addColorStop(1, 'rgba(110,70,38,0)');
+    x.fillStyle = g; x.beginPath(); x.ellipse(32, 34, 20, 24, 0, 0, 7); x.fill();
+    x.strokeStyle = 'rgba(70,40,18,.5)'; x.lineWidth = 4; x.beginPath(); x.arc(32, 30, 16, Math.PI*.95, Math.PI*2.05); x.stroke();   // la paroi du fer
+    x.fillStyle = 'rgba(235,200,160,.25)'; x.beginPath(); x.ellipse(32, 56, 16, 5, 0, 0, 7); x.fill();                           // bourrelet de sable devant
+  });
+  const slideTex = canvasTex(32, 128, (x, w, h) => {
+    const g = x.createLinearGradient(0, 0, w, 0); g.addColorStop(0, 'rgba(110,70,38,0)'); g.addColorStop(.2, 'rgba(80,48,24,.5)'); g.addColorStop(.5, 'rgba(70,40,20,.55)'); g.addColorStop(.8, 'rgba(80,48,24,.5)'); g.addColorStop(1, 'rgba(110,70,38,0)');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+  });
+  const mk = (tex, n) => {
+    const geo = new THREE.PlaneGeometry(1, 1); geo.rotateX(-Math.PI/2);
+    const m = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({map:tex, transparent:true, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-4, polygonOffsetUnits:-4}), n);
+    m.count = 0; m.frustumCulled = false; m.renderOrder = 1; scene.add(m); return { m, n, i:0, total:0 };
+  };
+  return { prints: mk(printTex, 2400), slides: mk(slideTex, 1600), feet:{}, m4: new THREE.Matrix4(), q: new THREE.Quaternion(), sv: new THREE.Vector3(), pv: new THREE.Vector3(), up: new THREE.Vector3(0,1,0), wp: new THREE.Vector3() };
+})();
+function stampTrack(set, x, z, yaw, sx, sz){
+  const T = TRACKS; T.q.setFromAxisAngle(T.up, yaw); T.sv.set(sx, 1, sz); T.pv.set(x, sandH(x, z) + .004, z);
+  T.m4.compose(T.pv, T.q, T.sv); set.m.setMatrixAt(set.i, T.m4); set.i = (set.i + 1) % set.n; set.total++;
+  set.m.count = Math.min(set.total, set.n); set.m.instanceMatrix.needsUpdate = true;
+}
+function clearTracks(){ for (const set of [TRACKS.prints, TRACKS.slides]){ set.i = 0; set.total = 0; set.m.count = 0; } TRACKS.feet = {}; }
+function updateTracks(){
+  if (!model || hoofRef === null || !BONES[HOOF_KEYS[0]]) return;
+  const gy = rig.position.y, moving = Math.abs(S.v) > .15 || S.mode==='spin' || S.mode==='rollback' || S.mode==='slide';
+  for (const k of HOOF_KEYS){
+    const b = BONES[k]; if (!b) continue;
+    const p = b.getWorldPosition(TRACKS.wp), hgt = p.y - gy - hoofRef, f = TRACKS.feet[k] || (TRACKS.feet[k] = { down:false, x:p.x, z:p.z });
+    const hind = k.startsWith('toes');
+    if (S.mode==='slide' && hind && hgt < .05){   // postérieurs qui glissent : bandes continues
+      const d = Math.hypot(p.x - f.x, p.z - f.z);
+      if (f.down && d > .1){ stampTrack(TRACKS.slides, (p.x+f.x)/2, (p.z+f.z)/2, Math.atan2(-(p.x-f.x), -(p.z-f.z)), .13, d + .04); f.x = p.x; f.z = p.z; }
+      else if (!f.down){ f.x = p.x; f.z = p.z; }
+      f.down = true; continue;
+    }
+    if (!f.down && hgt < .025){
+      f.down = true;
+      if (moving && Math.hypot(p.x - f.x, p.z - f.z) > .12){ stampTrack(TRACKS.prints, p.x, p.z, S.yaw, .24, .28); f.x = p.x; f.z = p.z; }
+    } else if (f.down && hgt > .06) f.down = false;
+  }
+}
 function resetState(){
+  clearTracks();
   Object.assign(S, {
     x:0, z:0, yaw:0, v:0, gait:0, mode:'ride', lead:null, disunited:false, fixT:0,
     steer:0, steerHeld:0, legsHeld:0, needT:0, straightT:0, surge:0, sessionT:0,
@@ -2099,6 +2145,7 @@ function animateRig(dt, t){
   neckPivot.rotation.x = neck;
   animateHorse(dt, t, neck);
   groundHooves();   // après la pose : les sabots restent au-dessus du sol
+  updateTracks();
   neckPivot.rotation.y = (S.mode==='ride' ? S.steer*.1 : S.mode==='spin' ? S.spin.dir*.12 : 0);
   if (horseParts){
     const hp = horseParts;
