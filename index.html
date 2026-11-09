@@ -988,8 +988,8 @@ const PROM = (() => {
   // ---- relief
   const LAKE_Y = .55;
   function baseH(x, z){
-    let h = .35 + 1.3*fbm(pn, x/38+100, z/38+100, 4096, 4) + 1.6*fbm(pn, x/120+7, z/120+7, 4096, 2);
-    const hl = lay('hill', x, z); h += hl*hl*(9 + 5*fbm(pn, x/30+60, z/30+60, 4096, 3));     // zones vallonnées du plan
+    let h = .75 + .65*fbm(pn, x/38+100, z/38+100, 4096, 4) + .8*fbm(pn, x/120+7, z/120+7, 4096, 2);   // relief adouci de moitié
+    const hl = lay('hill', x, z); h += hl*hl*(4.5 + 2.5*fbm(pn, x/30+60, z/30+60, 4096, 3));     // zones vallonnées du plan
     const sa = lay('sand', x, z); h = mixc(h, LAKE_Y + .25 + .15*fbm(pn, x/20, z/20, 4096, 2), clamp01(sa*1.6));   // plage presque plate
     const cv = caveD(x, z); if (cv < 3) h = mixc(.25 + .2*fbm(pn, x/6, z/6, 4096, 2), h, clamp01(cv/3));          // sol de la grotte
     return h;
