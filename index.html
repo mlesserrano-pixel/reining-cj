@@ -980,16 +980,18 @@ const PROM = (() => {
   const lakeD = (x, z) => sd('lake', x, z), caveD = (x, z) => sd('cave', x, z), caveWD = (x, z) => sd('cavew', x, z);
   const side = (x, z) => lay('side', x, z) > .5 ? 1 : -1;
   // ---- pont
-  const [b0x, b0z] = P(766, 364), [b1x, b1z] = P(747, 486);
+  const [b0xp, b0zp] = P(766, 364), [b1xp, b1zp] = P(747, 486);
+  const EXT = 5.5, bl0 = Math.hypot(b1xp-b0xp, b1zp-b0zp), ux0 = (b1xp-b0xp)/bl0, uz0 = (b1zp-b0zp)/bl0;
+  const b0x = b0xp - ux0*EXT, b0z = b0zp - uz0*EXT, b1x = b1xp + ux0*EXT, b1z = b1zp + uz0*EXT;   // 5,5 m de rampe de chaque côté
   const BL = Math.hypot(b1x-b0x, b1z-b0z), BW = 3.4, bdx = (b1x-b0x)/BL, bdz = (b1z-b0z)/BL;
   function onBridge(x, z){ const t = (x-b0x)*bdx + (z-b0z)*bdz, s = -(x-b0x)*bdz + (z-b0z)*bdx; return t > -.5 && t < BL+.5 && Math.abs(s) < BW/2 - .2 ? t : null; }
   let deckA = 0, deckB = 0;
-  const deckY = t => { const k = clamp01(t/BL); return mixc(deckA, deckB, k) + .15 + .7*Math.sin(Math.PI*k); };
+  const deckY = t => { const k = clamp01(t/BL), a = Math.sin(Math.PI*k); return mixc(deckA, deckB, k) + .06 + .9*Math.pow(a, .8); };   // part du sol, monte en pente douce
   // ---- relief
   const LAKE_Y = .55;
   function baseH(x, z){
-    let h = .75 + .65*fbm(pn, x/38+100, z/38+100, 4096, 4) + .8*fbm(pn, x/120+7, z/120+7, 4096, 2);   // relief adouci de moitié
-    const hl = lay('hill', x, z); h += hl*hl*(4.5 + 2.5*fbm(pn, x/30+60, z/30+60, 4096, 3));     // zones vallonnées du plan
+    let h = .85 + .45*fbm(pn, x/38+100, z/38+100, 4096, 4) + .56*fbm(pn, x/120+7, z/120+7, 4096, 2);   // relief adouci de moitié
+    const hl = lay('hill', x, z); h += hl*hl*(3.15 + 1.75*fbm(pn, x/30+60, z/30+60, 4096, 3));     // zones vallonnées du plan
     const sa = lay('sand', x, z); h = mixc(h, LAKE_Y + .25 + .15*fbm(pn, x/20, z/20, 4096, 2), clamp01(sa*1.6));   // plage presque plate
     const cv = caveD(x, z); if (cv < 3) h = mixc(.25 + .2*fbm(pn, x/6, z/6, 4096, 2), h, clamp01(cv/3));          // sol de la grotte
     return h;
@@ -1003,7 +1005,7 @@ const PROM = (() => {
     if (e > 0) h += Math.min(e, 160)*.12*(.6 + .8*fbm(pn, x/60+50, z/60+50, 4096, 3));
     return h;
   }
-  deckA = baseH(b0x - bdx*2, b0z - bdz*2); deckB = baseH(b1x + bdx*2, b1z + bdz*2);
+  deckA = baseH(b0x, b0z); deckB = baseH(b1x, b1z);
   function walkY(x, z){ const t = onBridge(x, z); return t !== null ? Math.max(deckY(t), groundH(x, z)) : groundH(x, z); }
   const inLake = (x, z) => lakeD(x, z) < -.3;
 
@@ -1029,7 +1031,7 @@ const PROM = (() => {
       r = mixc(r, .78, bank*.6); g = mixc(g, .7, bank*.6); b = mixc(b, .55, bank*.6);
       r = mixc(r, .62, mud); g = mixc(g, .5, mud); b = mixc(b, .38, mud);
       const cv = clamp01(1 - (caveD(x, z) + .5)/2.5);                                       // sol de la grotte : roche et mousse sombres
-      r = mixc(r, .42, cv); g = mixc(g, .46, cv); b = mixc(b, .44, cv);
+      r = mixc(r, .2, cv); g = mixc(g, .22, cv); b = mixc(b, .23, cv);
       col[i*3] = r; col[i*3+1] = g; col[i*3+2] = b;
       sa[i] = hole ? 0 : clamp01(lay('sand', x, z)*1.4 - .1);
     }
@@ -1083,6 +1085,7 @@ const PROM = (() => {
       im.castShadow = !!castS; im.receiveShadow = true; group.add(im); });
   }
 
+  const CAVE_IN = { value:0 };   // 0 dehors (l'intérieur reste noir), 1 dedans
   // ---- la grotte secrète : un massif rocheux creux, une entrée cachée à l'ouest, un puits de lumière
   const [ecx, ecz] = P(1166, 152);                    // entrée secrète
   const [scx, scz] = P(M.caveCenter[0], M.caveCenter[1]);   // puits de lumière, au centre de la salle
@@ -1104,25 +1107,27 @@ const PROM = (() => {
       const sh = Math.hypot(x - scx, z - scz);
       keep[i] = (doorway(x, z) ? 0 : 1) & (sh > 2.6 ? 1 : 0) & (cd < 3.4 || corridor(x, z) ? 1 : 0);
       const xc = Math.min(x, HX - 1.5), zc = Math.max(z, -HZ + 1.5);
-      if (xc !== x || zc !== z){ const cdc = caveD(xc, zc); keep[i] = cdc < 3.4 ? 1 : 0; y = 8.5 + 2.4*(n-.5); }   // au-delà du bord : la roche ferme la salle
+      if (xc !== x || zc !== z){ const cdc = caveD(xc, zc), e = Math.hypot(x - xc, z - zc); keep[i] = cdc < 3.4 && e < 4 ? 1 : 0; y = cdc < 0 ? (8.5 + 2.4*(n-.5))*Math.max(0, 1 - Math.pow(e/3.2, 1.4)) - .6 : y; }   // au-delà du bord : une paroi de roche descend jusqu'au sol   // au-delà du bord : la roche ferme la salle
       pos.setXYZ(i, x, Math.max(y, groundH(x, z) - .8), z);
     }
     const idx = geo.index.array, nidx = [];
     for (let i=0;i<idx.length;i+=3){ if (keep[idx[i]] && keep[idx[i+1]] && keep[idx[i+2]]) nidx.push(idx[i], idx[i+1], idx[i+2]); }
     geo.setIndex(nidx); geo.computeVertexNormals();
     const uv = geo.attributes.uv; for (let i=0;i<uv.count;i++) uv.setXY(i, pos.getX(i)/6, pos.getZ(i)/6 + pos.getY(i)/6);
-    const shell = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({map:rockT.map, bumpMap:rockT.bump, bumpScale:.3, roughness:.95, side:THREE.DoubleSide}));
+    const shellMat = new THREE.MeshStandardMaterial({map:rockT.map, bumpMap:rockT.bump, bumpScale:.3, roughness:.95, side:THREE.DoubleSide});
+    shellMat.onBeforeCompile = sh => { sh.uniforms.uIn = CAVE_IN; sh.fragmentShader = 'uniform float uIn;\n' + sh.fragmentShader.replace('#include <dithering_fragment>', '#include <dithering_fragment>\n if (!gl_FrontFacing) gl_FragColor.rgb *= mix(.04, 1.0, uIn);'); };
+    const shell = new THREE.Mesh(geo, shellMat);
     shell.castShadow = true; shell.receiveShadow = true; group.add(shell);
   }
   // obstacles : les parois (le couloir reste libre)
-  for (const [px, py] of M.caveWall){ const [x, z] = P(px, py); if (corridor(x, z) || doorway(x, z) || Math.hypot(x - ecx, z - ecz) < 4.2) continue; OBST.push([x, z, 1.6]); }
+  for (const [px, py] of M.caveWall){ const [x, z] = P(px, py); if (corridor(x, z) || doorway(x, z) || Math.hypot(x - ecx, z - ecz) < 4.2 || caveD(x, z) < -1.2) continue; OBST.push([x, z, 1.2]); }   // seulement contre les parois
   // buissons et arbres qui cachent l'entrée
   const hideBush = [];
   for (const [a, b] of [[-6, 3.6], [-7.5, -3.8], [-10, .8], [-4, 5.8], [-4.6, -6]]){ hideBush.push([ecx + eux*a - euz*b, ecz + euz*a + eux*b]); }
   // cristaux et champignons lumineux, lucioles, faisceau du puits de lumière, eau bioluminescente
   const glow = { cyan:new THREE.Color('#5ff6ff'), violet:new THREE.Color('#c58bff') };
   const crystals = [];
-  for (let i=0;i<400 && crystals.length<46;i++){ const [x, z] = [scx + (r()-.5)*36, scz + (r()-.5)*44]; const cd = caveD(x, z); if (cd > -.6 || cd < -3.2 || caveWD(x, z) < 1 || corridor(x, z)) continue; crystals.push([x, z]); }
+  for (let i=0;i<0;i++){ /* pas de cristaux */ const [x, z] = [scx + (r()-.5)*36, scz + (r()-.5)*44]; const cd = caveD(x, z); if (cd > -.6 || cd < -3.2 || caveWD(x, z) < 1 || corridor(x, z)) continue; crystals.push([x, z]); }
   {
     const cg = new THREE.OctahedronGeometry(1, 0); cg.scale(.35, 1.4, .35);
     const cm = new THREE.MeshBasicMaterial({color:'#ffffff', transparent:true, opacity:.85, toneMapped:false});
@@ -1136,7 +1141,7 @@ const PROM = (() => {
     for (let i=0;i<500 && n<70;i++){ const x = scx + (r()-.5)*34, z = scz + (r()-.5)*42; if (caveD(x, z) > -1 || caveWD(x, z) < 1.2 || corridor(x, z)) continue;
       const s = .12 + r()*.22, y = groundH(x, z), h = s*2.2; q.identity(); sv.set(1, h, 1); pv.set(x, y, z); m4.compose(pv, q, sv); stem.setMatrixAt(n, m4);
       sv.set(s, s, s); pv.set(x, y + h, z); m4.compose(pv, q, sv); mush.setMatrixAt(n, m4); mush.setColorAt(n, r() < .5 ? glow.cyan : new THREE.Color('#7dffb0')); n++; }
-    mush.count = stem.count = n; group.add(mush, stem);
+    mush.count = stem.count = 0;   // pas de champignons lumineux non plus : une vraie grotte, seulement l'eau qui s'illumine
   }
   const beamT = canvasTex(64, 256, (x, w, h) => { const g = x.createLinearGradient(0, 0, w, 0); g.addColorStop(0, 'rgba(255,248,220,0)'); g.addColorStop(.5, 'rgba(255,248,220,.9)'); g.addColorStop(1, 'rgba(255,248,220,0)'); x.fillStyle = g; x.fillRect(0, 0, w, h);
     const v = x.createLinearGradient(0, 0, 0, h); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(.15, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.85)'); x.globalCompositeOperation = 'destination-out'; x.fillStyle = v; x.fillRect(0, 0, w, h); });
@@ -1144,7 +1149,7 @@ const PROM = (() => {
   beam.position.set(scx, groundH(scx, scz) + 6, scz); group.add(beam);
   const shaftLight = new THREE.SpotLight(0xfff1d6, 0, 22, .32, .6, 1.2); shaftLight.position.set(scx, 12, scz); shaftLight.target.position.set(scx, 0, scz); group.add(shaftLight, shaftLight.target);
   const caveLight = new THREE.PointLight(0x46d8ff, 0, 30, 1.6); caveLight.position.set(scx, 2.5, scz); group.add(caveLight);
-  const bioMat = new THREE.ShaderMaterial({ fog:false, transparent:true, depthWrite:false, uniforms:{ uT:{value:0} },
+  const bioMat = new THREE.ShaderMaterial({ fog:false, transparent:false, depthWrite:true, uniforms:{ uT:{value:0} },
     vertexShader:`varying vec2 vW; void main(){ vec4 w = modelMatrix*vec4(position,1.0); vW = w.xz; gl_Position = projectionMatrix*viewMatrix*w; }`,
     fragmentShader:`uniform float uT; varying vec2 vW;
       float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
@@ -1155,11 +1160,11 @@ const PROM = (() => {
           float tw = .5 + .5*sin(uT*(1.5 + r*3.0) + r*40.0); sp += smoothstep(.18, .0, length(f + vec2(r - .5, h(c+3.1) - .5)*.6)) * step(.72, r) * tw; }
         vec3 deep = vec3(.01, .05, .12), cyan = vec3(.25, .95, 1.0), teal = vec3(.05, .55, .7);
         vec3 c = deep + teal*flow*.55 + cyan*sp*1.6;
-        gl_FragColor = vec4(c, .92);
+        gl_FragColor = vec4(c, 1.0);
       }` });
   {
     const [x0, z0] = P(M.caveBox[0], M.caveBox[1]), [x1, z1] = P(M.caveBox[2] + 2, M.caveBox[3]);
-    const bio = new THREE.Mesh(new THREE.PlaneGeometry(x1-x0, z1-z0), bioMat); bio.rotation.x = -Math.PI/2; bio.position.set((x0+x1)/2, -.42, (z0+z1)/2); group.add(bio);
+    const bio = new THREE.Mesh(new THREE.PlaneGeometry(x1-x0, z1-z0), bioMat); bio.rotation.x = -Math.PI/2; bio.position.set((x0+x1)/2, -.42, (z0+z1)/2); bio.renderOrder = 2; group.add(bio);
   }
   const fireflyT = canvasTex(32, 32, (x, w, h) => { const g = x.createRadialGradient(16, 16, 0, 16, 16, 16); g.addColorStop(0, 'rgba(220,255,255,1)'); g.addColorStop(.3, 'rgba(120,240,255,.6)'); g.addColorStop(1, 'rgba(120,240,255,0)'); x.fillStyle = g; x.fillRect(0, 0, w, h); });
   const FF = 160, ffGeo = new THREE.BufferGeometry(), ffPos = new Float32Array(FF*3), ffBase = [];
@@ -1246,7 +1251,7 @@ const PROM = (() => {
     crowns.castShadow = castS; group.add(crowns); if (trunks){ trunks.castShadow = castS; group.add(trunks); }
     return sizes;
   }
-  const trees = M.trees.map(([px, py, rp]) => { const [x, z] = P(px, py); return [x, z, Math.min(6, rp*PX*1.05)]; }).filter(([x, z]) => caveD(x, z) > 1.5 && !corridor(x, z) && !doorway(x, z));
+  const trees = M.trees.map(([px, py, rp]) => { const [x, z] = P(px, py); return [x, z, Math.min(6, rp*PX*1.05)]; }).filter(([x, z]) => caveD(x, z) > 6 && !corridor(x, z) && !doorway(x, z));
   const shrubs = M.shrubs.map(([px, py, rp]) => { const [x, z] = P(px, py); return [x, z, Math.max(1.4, rp*PX*1.1)]; }).filter(([x, z]) => caveD(x, z) > 1 && !corridor(x, z) && !doorway(x, z));
   for (const [x, z] of hideBush) shrubs.push([x, z, 2.2 + r()*.6]);
   const trR = plant(trees, crown(5, 6), leafMat, false), shR = plant(shrubs, crown(31, 4), leafMat, true);
@@ -1287,7 +1292,7 @@ const PROM = (() => {
     }
     plant(edgeB, crown(41, 4), leafMat, true, false); rocks(edgeR, false);
     const RING = [];
-    for (let i=0;i<1100;i++){ const x = (r()-.5)*2*(HX+100), z = (r()-.5)*2*(HZ+100); if (Math.abs(x) < HX+5 && Math.abs(z) < HZ+5) continue; if (riverD(x, z) < 3) continue; RING.push([x, z, 2.6 + r()*2]); }
+    for (let i=0;i<1100;i++){ const x = (r()-.5)*2*(HX+100), z = (r()-.5)*2*(HZ+100); if (Math.abs(x) < HX+5 && Math.abs(z) < HZ+5) continue; if (riverD(x, z) < 3) continue; if (caveD(Math.min(x, HX-2), Math.max(z, -HZ+2)) < 8) continue; RING.push([x, z, 2.6 + r()*2]); }
     plant(RING, crown(13, 4), leafMat, false, false);
     // rochers épars dans les collines
     const hr = []; for (let i=0;i<400 && hr.length<40;i++){ const x = (r()-.5)*2*(HX-6), z = (r()-.5)*2*(HZ-6); if (lay('hill', x, z) < .45 || riverD(x, z) < 3) continue; const s = .7 + r()*1.4; hr.push([x, z, s*1.3, s*.8, s*1.1]); OBST.push([x, z, s*1.2]); }
@@ -1362,7 +1367,8 @@ const PROM = (() => {
     }
     if (blocked === 'gate') toast('Sortie : Échap pour rentrer à l\'écurie', '', 'prom-gate', 4);
     if (typeof NPCS !== 'undefined') for (const n of NPCS.list){ if (!n.root.visible) continue; const dx = S.x - n.x, dz = S.z - n.z, d = Math.hypot(dx, dz);
-      if (d < 2.4 && d > 1e-3){ S.x = n.x + dx/d*2.4; S.z = n.z + dz/d*2.4; if (S.v > 1.5){ S.v *= .5; toast(`Attention, ${n.h.name} est sur votre chemin`, 'warn', 'npc', 3); } } }
+      const [hx, hz] = fwd(S.yaw), along = Math.abs((-dx)*hx + (-dz)*hz)/Math.max(d, 1e-3), R2 = 1.15 + .9*along;   // côte à côte on peut se frôler, de face il faut la longueur de la tête
+      if (d < R2 && d > 1e-3){ S.x = n.x + dx/d*R2; S.z = n.z + dz/d*R2; if (S.v > 2.5 && along > .7){ S.v *= .7; toast(`Attention, ${n.h.name} est sur votre chemin`, 'warn', 'npc', 3); } } }
     if (inCave(S.x, S.z)) toast('Une grotte secrète… l\'eau s\'illumine sous les sabots', 'good', 'prom-cave', 600);
     if (inLake(S.x, S.z)) toast(`${H.name} entre dans le lac : l'eau lui arrive aux genoux`, 'good', 'prom-lake', 300);
   }
@@ -1387,7 +1393,8 @@ const PROM = (() => {
     for (const [o, i0] of AMB.base) o.intensity = i0*(1 - .86*AMB.k);
     shaftLight.intensity = 2.2*AMB.k; caveLight.intensity = 1.4*AMB.k;
     scene.fog.color.copy(AMB.fog).lerp(new THREE.Color('#06141c'), AMB.k); scene.fog.near = mixc(AMB.near, 4, AMB.k); scene.fog.far = mixc(AMB.far, 70, AMB.k);
-    beam.material.opacity = .15 + .4*AMB.k;
+    beam.material.opacity = .45*AMB.k; CAVE_IN.value = AMB.k;
+    const near = AMB.k > .02; beam.visible = fireflies.visible = near;   // la magie ne se voit qu'une fois entré
     // ronds dans l'eau quand le cheval avance dans le lac
     splashCd -= dt;
     if (inLake(S.x, S.z) && Math.abs(S.v) > .4 && splashCd <= 0){ splashCd = .55/Math.max(1, Math.abs(S.v)*.6); const [fx, fz] = fwd(S.yaw); const s = splashes[splashI++ % splashes.length]; s.t = 0; s.m.visible = true; s.m.position.set(S.x + fx*(.3 + Math.random()*1.6) + (Math.random()-.5)*.6, LAKE_Y + .02, S.z + fz*(.3 + Math.random()*1.6) + (Math.random()-.5)*.6); }
@@ -1408,7 +1415,7 @@ const PROM = (() => {
   }
   const bridgeEnds = [[b0x - bdx*3, b0z - bdz*3], [b1x + bdx*3, b1z + bdz*3]];
   const walkable = (x, z) => !blockedWater(x, z) && Math.abs(x) < HX-2 && Math.abs(z) < HZ-2;
-  return { group, walkY, groundH, riverD: (x, z) => Math.min(riverD(x, z), caveWD(x, z) + 1), onBridge, side, bridgeEnds, OBST, bodyPush, collide, animate, drawMap, resetAmbiance, inCave, inLake, walkable,
+  return { group, walkY, groundH, onSand: (x, z) => lay('sand', x, z) > .5, riverD: (x, z) => Math.min(riverD(x, z), caveWD(x, z) + 1), onBridge, side, bridgeEnds, OBST, bodyPush, collide, animate, drawMap, resetAmbiance, inCave, inLake, walkable,
     start:[gx + 4, gz], HX, HZ, cliff:[cfx, cfz], cave:[scx, scz] };
 })();
 let promY = 0;
@@ -1417,7 +1424,7 @@ function setWorld(m){
   for (const o of ARENA_OBJS) o.visible = !out && (o !== patternGround || mode === 'pattern');
   PROM.group.visible = out;
   if (!out) PROM.resetAmbiance();
-  if (typeof TRACKS !== 'undefined'){ TRACKS.prints.m.visible = TRACKS.slides.m.visible = !out; }
+  if (typeof TRACKS !== 'undefined'){ TRACKS.prints.m.visible = TRACKS.slides.m.visible = true; clearTracks(); }
 }
 
 /* ---------- Cheval vu de la selle ---------- */
@@ -2004,8 +2011,8 @@ function setupPack(){
     const n = c.frames, z = [], v = [];
     for (let i=0;i<n;i++) z.push(-new THREE.Vector3(c.p[i*3], c.p[i*3+1], c.p[i*3+2]).applyQuaternion(PACK.K).applyQuaternion(PACK.Mp).multiplyScalar(PACK.s).z);
     for (let i=0;i<n;i++){ const a = Math.max(0, i-2), b = Math.min(n-1, i+2); v.push(Math.max(0, (z[b]-z[a])/(b-a)*P.fps)); }
-    let end = n-1; while (end > 4 && v[end] < .06) end--;
-    PACK.prof[name] = { z, v, end: Math.min(n-1, end + 10) };
+    let end = n-1; while (end > 4 && v[end] < .3) end--;
+    PACK.prof[name] = { z, v, end: Math.min(n-1, end + 3) };   // on s'arrête net dès que l'animation ne fait plus que piétiner
   }
   PACK.ready = true;
 }
@@ -2066,7 +2073,9 @@ let hoofRef = null;
 function groundHooves(){
   if (!model || !BONES[HOOF_KEYS[0]]) return;
   const gy = rig.getWorldPosition(_v3g).y;
-  const low = () => { model.updateMatrixWorld(true); let m = 9; for (const k of HOOF_KEYS){ const b = BONES[k]; if (b) m = Math.min(m, b.getWorldPosition(_v3h).y); } return m - gy; };
+  const low = () => { model.updateMatrixWorld(true); let m = 9;   // en promenade, chaque sabot se compare au sol juste sous lui
+    for (const k of HOOF_KEYS){ const b = BONES[k]; if (!b) continue; const p = b.getWorldPosition(_v3h); m = Math.min(m, mode==='promenade' && hoofRef !== null ? p.y - PROM.walkY(p.x, p.z) + gy : p.y); }
+    return m - gy; };
   if (hoofRef === null){   // hauteur de l'os du sabot quand le cheval est debout, posé au sol
     const save = body.position.y, rx = body.rotation.x, rz = body.rotation.z;
     body.position.y = 0; body.rotation.x = 0; body.rotation.z = 0;
@@ -2207,18 +2216,19 @@ const TRACKS = (() => {
 })();
 function stampTrack(set, x, z, yaw, sx, sz){
   const T = TRACKS; T.q.setFromAxisAngle(T.up, yaw); T.sv.set(sx, 1, sz); T.pv.set(x, sandH(x, z) + .004, z);
+  if (mode === 'promenade') T.pv.y = PROM.walkY(x, z) + .03;   // sur la plage de la promenade
   T.m4.compose(T.pv, T.q, T.sv); set.m.setMatrixAt(set.i, T.m4); set.i = (set.i + 1) % set.n; set.total++;
   set.m.count = Math.min(set.total, set.n); set.m.instanceMatrix.needsUpdate = true;
 }
 function clearTracks(){ for (const set of [TRACKS.prints, TRACKS.slides]){ set.i = 0; set.total = 0; set.m.count = 0; } TRACKS.feet = {}; }
 function updateTracks(){
-  if (mode === 'promenade') return;
   if (!model || hoofRef === null || !BONES[HOOF_KEYS[0]]) return;
   const gy = rig.position.y, moving = Math.abs(S.v) > .15 || S.mode==='spin' || S.mode==='rollback' || S.mode==='slide';
   for (const k of HOOF_KEYS){
     const b = BONES[k]; if (!b) continue;
-    const p = b.getWorldPosition(TRACKS.wp), hgt = p.y - gy - hoofRef, f = TRACKS.feet[k] || (TRACKS.feet[k] = { down:false, x:p.x, z:p.z });
+    const p = b.getWorldPosition(TRACKS.wp), hgt = p.y - (mode === 'promenade' ? PROM.walkY(p.x, p.z) : gy) - hoofRef, f = TRACKS.feet[k] || (TRACKS.feet[k] = { down:false, x:p.x, z:p.z });
     const hind = k.startsWith('toes');
+    if (mode === 'promenade' && !PROM.onSand(p.x, p.z)){ f.down = hgt < .025; f.x = p.x; f.z = p.z; continue; }   // en promenade : seulement dans le sable de la plage
     if (S.mode==='slide' && hind && hgt < .05){   // postérieurs qui glissent : bandes continues
       const d = Math.hypot(p.x - f.x, p.z - f.z);
       if (f.down && d > .1){ stampTrack(TRACKS.slides, (p.x+f.x)/2, (p.z+f.z)/2, Math.atan2(-(p.x-f.x), -(p.z-f.z)), .13, d + .04); f.x = p.x; f.z = p.z; }
@@ -2342,7 +2352,7 @@ function updateRide(dt, d){
       h.f = Math.min(n - 1.001, h.f + dt*24*h.r);
       const i = Math.floor(h.f), a = h.f - i;
       const vc = Math.max(0, (pr.v[i]*(1-a) + pr.v[Math.min(i+1, n-1)]*a) * h.r);
-      S.v = Math.max(vc, S.v - 5*dt);   // pas de cassure brutale de vitesse en entrant dans l'animation
+      S.v = Math.max(vc, S.v - 5*dt); if (vc < .2 && S.v < .35) S.v = 0;   // pas de cassure brutale de vitesse en entrant dans l'animation
       S.steer = lerp(S.steer, 0, 1-Math.exp(-dt*6));
       moveForward(dt);
       if (h.f >= pr.end){ S.halt = null; S.v = 0; }
@@ -2580,7 +2590,13 @@ let earTwitch = 0, fpPitch = -.15, CAM_Y = 2.33; const camStab = {x:0, y:2.33, z
 function animateRig(dt, t){
   { const gy = mode==='promenade' ? PROM.walkY(S.x, S.z) : 0; promY += (gy - promY)*Math.min(1, dt*10); if (Math.abs(gy - promY) > 3) promY = gy; }
   rig.position.set(S.x, promY, S.z);
-  rig.rotation.y = S.yaw;
+  rig.rotation.order = 'YXZ'; rig.rotation.y = S.yaw;
+  {   // en promenade, le cheval épouse la pente : il lève le nez en montée, se penche dans les dévers
+    let pt = 0, rl = 0;
+    if (mode==='promenade'){ const [fx, fz] = fwd(S.yaw), hb = PROM.walkY(S.x, S.z), hf = PROM.walkY(S.x + fx*1.6, S.z + fz*1.6), hl = PROM.walkY(S.x - fz*.5 + fx*.8, S.z + fx*.5 + fz*.8), hr = PROM.walkY(S.x + fz*.5 + fx*.8, S.z - fx*.5 + fz*.8);
+      pt = clamp(Math.atan2(hf - hb, 1.6), -.3, .3); rl = clamp(Math.atan2(hl - hr, 1.0), -.15, .15)*.6; }
+    const k = Math.min(1, dt*6); rig.rotation.x += (pt - rig.rotation.x)*k; rig.rotation.z += (rl - rig.rotation.z)*k;
+  }
   const gaitForAnim = S.mode==='ride' ? S.gait : 0;
   const target = ANIM[gaitForAnim];
   const A = S.anim, k = 1-Math.exp(-dt*5);
