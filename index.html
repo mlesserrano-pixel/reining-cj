@@ -1,0 +1,2279 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta charset="utf-8">
+<title>Reining CJ Horses</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rye&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout : jeu plein écran, menu de sélection en surimpression, HUD aux quatre coins. Palette reprise du Western Ride Log. */
+:root{
+  --brown:#3D1C02; --brown-2:#2a1301; --saddle:#8B5E3C; --sand:#C8A96E; --cream:#F5ECD7;
+  --rust:#c0522b; --sage:#8aa36f; --ink:#160a01; --line:rgba(245,236,215,.16);
+  --f-display:"Rye","Georgia",serif;
+  --f-ui:"Barlow Condensed","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Barlow","Helvetica Neue",Arial,sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%;}
+body{background:var(--ink);color:var(--cream);font-family:var(--f-body);overflow:hidden;
+  padding-left:max(0px, env(safe-area-inset-left,0px));}
+#stage{position:fixed;inset:0;}
+#stage canvas{display:block;width:100%;height:100%;}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:2px solid var(--sand);outline-offset:2px}
+
+/* ---------- Menu ---------- */
+#menu{position:fixed;inset:0;overflow-y:auto;z-index:20;
+  background:radial-gradient(120% 80% at 50% -10%, #5a2c08 0%, var(--brown) 45%, var(--brown-2) 100%);
+  padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));
+  padding-block:calc(env(safe-area-inset-top,0px) + 28px) calc(env(safe-area-inset-bottom,0px) + 40px);}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:28px}
+.masthead{display:grid;gap:8px}
+.eyebrow{font-family:var(--f-ui);text-transform:uppercase;letter-spacing:.18em;font-size:13px;color:var(--sand)}
+h1{font-family:var(--f-display);font-weight:400;font-size:clamp(34px,6vw,64px);line-height:1;margin:0;text-wrap:balance;color:var(--cream)}
+.lede{max-width:64ch;margin:0;color:rgba(245,236,215,.8);line-height:1.55;font-size:15px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.card{all:unset;box-sizing:border-box;cursor:pointer;display:grid;grid-template-rows:auto auto 1fr auto;gap:10px;
+  padding:14px;border-radius:6px;background:rgba(22,10,1,.45);border:1px solid var(--line);transition:border-color .15s, background .15s, transform .15s}
+.card:hover{border-color:rgba(200,169,110,.55)}
+.card:focus-visible{outline:2px solid var(--sand);outline-offset:2px}
+.card[aria-pressed="true"]{border-color:var(--sand);background:rgba(139,94,60,.32)}
+.card-top{display:flex;gap:12px;align-items:center;min-width:0}
+.coat{width:48px;height:48px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 2px rgba(0,0,0,.35),0 0 0 2px rgba(245,236,215,.12)}
+.card-name{font-family:var(--f-ui);font-weight:700;font-size:24px;line-height:1;letter-spacing:.01em}
+.card-meta{font-family:var(--f-ui);font-size:14px;color:var(--sand);letter-spacing:.04em;margin-top:3px}
+.card-text{font-size:13.5px;line-height:1.45;color:rgba(245,236,215,.82);margin:0}
+.stats{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:center;font-family:var(--f-ui);font-size:13px;letter-spacing:.04em;color:rgba(245,236,215,.7)}
+.bar{height:5px;border-radius:3px;background:rgba(245,236,215,.1);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--sand)}
+.record{font-family:var(--f-ui);font-size:13px;color:var(--sage);letter-spacing:.05em;min-height:1em}
+.launch{display:flex;flex-wrap:wrap;gap:12px;align-items:center;position:sticky;bottom:0;padding-block:14px;
+  background:linear-gradient(transparent, var(--brown-2) 30%)}
+.btn{font-family:var(--f-ui);font-weight:700;font-size:19px;letter-spacing:.06em;text-transform:uppercase;
+  padding:12px 22px;border-radius:4px;border:1px solid var(--sand);background:transparent;color:var(--cream)}
+.btn.primary{background:var(--sand);color:var(--brown);border-color:var(--sand)}
+.btn:hover{filter:brightness(1.08)}
+.launch .chosen{font-family:var(--f-ui);font-size:16px;color:var(--sand);letter-spacing:.04em}
+/* Avis des cavaliers */
+.avis{display:grid;gap:14px;border-top:1px solid var(--line);padding-top:22px}
+.avis h2{font-family:var(--f-ui);font-size:15px;text-transform:uppercase;letter-spacing:.16em;color:var(--sand);margin:0;font-weight:600}
+.avis .intro{margin:0;font-size:14px;line-height:1.5;color:rgba(245,236,215,.82);max-width:70ch}
+.avis-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:22px;align-items:start}
+@media (max-width:760px){.avis-cols{grid-template-columns:1fr}}
+.avis form{display:grid;gap:10px;padding:14px;border-radius:6px;background:rgba(22,10,1,.45);border:1px solid var(--line)}
+.avis label{font-family:var(--f-ui);font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--sand)}
+.avis select,.avis textarea{font:inherit;font-size:15px;color:var(--cream);background:rgba(245,236,215,.06);border:1px solid rgba(245,236,215,.22);border-radius:4px;padding:8px 10px;width:100%;box-sizing:border-box}
+.avis select option{color:#2b1606}
+.avis textarea{min-height:110px;resize:vertical;line-height:1.45}
+.avis select:focus-visible,.avis textarea:focus-visible{outline:2px solid var(--sand);outline-offset:1px}
+.avis .btn{justify-self:start;font-size:16px;padding:9px 18px}
+.avis .state{font-size:13px;color:rgba(245,236,215,.65);min-height:1.2em}
+.avis-filter{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chipf{font-family:var(--f-ui);font-size:14px;letter-spacing:.03em;padding:4px 10px;border-radius:14px;border:1px solid var(--line);background:transparent;color:rgba(245,236,215,.8)}
+.chipf[aria-pressed="true"]{background:var(--sand);color:var(--brown);border-color:var(--sand)}
+.avis-list{display:grid;gap:10px}
+.note{padding:12px 14px;border-radius:6px;background:rgba(22,10,1,.38);border:1px solid var(--line);display:grid;gap:6px;min-width:0}
+.note.done{opacity:.6}
+.note-head{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline;font-family:var(--f-ui);font-size:14px;color:var(--sand);letter-spacing:.03em}
+.note-head b{font-size:17px;color:var(--cream);font-weight:700}
+.note p{margin:0;font-size:14.5px;line-height:1.5;color:rgba(245,236,215,.9);white-space:pre-wrap;overflow-wrap:anywhere}
+.note-actions{display:flex;gap:8px;flex-wrap:wrap}
+.note-actions button{font-family:var(--f-ui);font-size:13px;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:3px;border:1px solid var(--line);background:transparent;color:rgba(245,236,215,.75)}
+.note-actions button:hover{border-color:var(--sand);color:var(--cream)}
+.tag-done{font-size:12px;padding:1px 7px;border-radius:3px;background:rgba(138,163,111,.25);color:#cfe3b9;border:1px solid rgba(138,163,111,.6)}
+.empty{font-size:14px;color:rgba(245,236,215,.6);padding:12px 0}
+.avis-count{font-family:var(--f-ui);font-size:13px;color:var(--sand);letter-spacing:.04em}
+.howto{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px 28px;
+  border-top:1px solid var(--line);padding-top:22px}
+.howto h2{font-family:var(--f-ui);font-size:15px;text-transform:uppercase;letter-spacing:.16em;color:var(--sand);margin:0 0 8px;font-weight:600}
+.keys .k{display:flex;gap:4px;white-space:nowrap;padding-top:1px}
+.keys .k kbd{min-width:30px;text-align:center}
+.keys{display:grid;grid-template-columns:max-content 1fr;align-items:start;gap:10px 14px;font-size:14px;line-height:1.35;color:rgba(245,236,215,.85)}
+kbd{font-family:var(--f-ui);font-weight:600;font-size:13px;padding:1px 6px;border-radius:3px;border:1px solid rgba(245,236,215,.3);background:rgba(245,236,215,.06);white-space:nowrap}
+.howto p{margin:0;font-size:14px;line-height:1.5;color:rgba(245,236,215,.82);max-width:62ch}
+
+/* ---------- HUD ---------- */
+.hud{position:fixed;z-index:5;pointer-events:none;font-family:var(--f-ui)}
+#hudTL{top:calc(env(safe-area-inset-top,0px) + 12px);left:max(12px, env(safe-area-inset-left,0px));display:grid;gap:8px;max-width:min(560px, calc(100vw - 170px))}
+.panel{background:rgba(22,10,1,.66);border:1px solid var(--line);border-radius:5px;padding:8px 10px;backdrop-filter:blur(4px)}
+.hname{font-family:var(--f-display);font-size:22px;line-height:1}
+.hrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
+.gait{font-size:13px;letter-spacing:.05em;padding:3px 7px;border-radius:3px;color:rgba(245,236,215,.45);border:1px solid transparent}
+.gait.on{color:var(--brown);background:var(--sand)}
+.chip{font-size:14px;font-weight:600;letter-spacing:.05em;padding:3px 8px;border-radius:3px;border:1px solid var(--line)}
+.chip.bad{background:var(--rust);border-color:var(--rust);color:var(--cream)}
+.chip.ok{border-color:rgba(138,163,111,.7);color:#cfe3b9}
+.speed{font-size:15px;color:var(--sand);font-variant-numeric:tabular-nums;letter-spacing:.03em}
+#hudTR{top:calc(env(safe-area-inset-top,0px) + 12px);right:max(12px, env(safe-area-inset-right,0px))}
+#minimap{display:block;width:120px;height:240px;border-radius:5px;border:1px solid var(--line);background:rgba(22,10,1,.55)}
+#pattern{font-size:14px;letter-spacing:.02em;display:grid;gap:3px;min-width:250px}
+#pattern .ptitle{font-size:13px;text-transform:uppercase;letter-spacing:.14em;color:var(--sand);margin-bottom:2px}
+.mv{display:grid;grid-template-columns:18px 1fr auto;gap:6px;align-items:baseline;color:rgba(245,236,215,.5)}
+.mv.now{color:var(--cream)}
+.mv.now .n{color:var(--sand)}
+.mv.done{color:rgba(245,236,215,.75)}
+.mv .sc{font-variant-numeric:tabular-nums;font-weight:600}
+.pos{color:#cfe3b9}.neg{color:#f0a487}
+.ptotal{display:flex;justify-content:space-between;border-top:1px solid var(--line);margin-top:4px;padding-top:4px;font-size:15px;font-variant-numeric:tabular-nums}
+#hudTL .ptop{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.fold{pointer-events:auto;font:600 12px var(--f-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--sand);background:transparent;border:1px solid var(--line);border-radius:3px;padding:4px 8px;cursor:pointer;white-space:nowrap}
+.fold:hover{background:rgba(233,214,176,.12)}
+#hudTL.folded #instrPanel{display:none}
+#hudTL.folded #pattern .mv:not(.now), #hudTL.folded #pattern .ptitle{display:none}
+#stage canvas{touch-action:none;cursor:grab}
+#stage canvas.dragging{cursor:grabbing}
+#instr{font-size:16px;color:var(--cream);font-family:var(--f-body);line-height:1.35}
+#instr b{color:var(--sand);font-weight:600}
+#toasts{left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 110px);display:grid;gap:6px;justify-items:center;width:min(92vw,560px)}
+.toast{font-family:var(--f-body);font-size:15px;padding:7px 14px;border-radius:4px;background:rgba(22,10,1,.78);border:1px solid var(--line);text-align:center;
+  animation:tin .18s ease-out}
+.toast.warn{border-color:var(--rust)}
+.toast.good{border-color:rgba(138,163,111,.8)}
+@keyframes tin{from{transform:translateY(6px);opacity:.3}to{transform:none;opacity:1}}
+#legend{left:max(12px, env(safe-area-inset-left,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 12px);font-size:13px;color:rgba(245,236,215,.7);letter-spacing:.03em;display:flex;flex-wrap:wrap;gap:4px 12px;max-width:min(760px,calc(100vw - 24px))}
+#legend kbd{font-size:12px}
+#topBtns{position:fixed;z-index:6;right:max(12px, env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 12px);display:flex;gap:8px}
+.mini{font-family:var(--f-ui);font-size:14px;letter-spacing:.06em;text-transform:uppercase;padding:7px 11px;border-radius:4px;background:rgba(22,10,1,.7);border:1px solid var(--line)}
+
+/* Touch */
+#touch{position:fixed;z-index:6;inset:auto 0 0 0;padding:0 max(12px, env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 12px) max(12px, env(safe-area-inset-left,0px));
+  display:none;justify-content:space-between;align-items:flex-end;pointer-events:none}
+#touch .pad{display:grid;gap:8px;pointer-events:auto}
+.tb{font-family:var(--f-ui);font-weight:700;font-size:15px;letter-spacing:.04em;min-width:58px;height:54px;border-radius:8px;
+  background:rgba(22,10,1,.62);border:1px solid rgba(245,236,215,.25);touch-action:none;user-select:none;-webkit-user-select:none}
+.tb.on{background:var(--sand);color:var(--brown)}
+.padL{grid-template-columns:repeat(3,58px)}
+.padR{grid-template-columns:repeat(2,74px)}
+@media (pointer:coarse){#touch{display:flex} #legend{display:none} #toasts{bottom:calc(env(safe-area-inset-bottom,0px) + 200px)} #topBtns{bottom:auto;top:calc(env(safe-area-inset-top,0px) + 262px)}}
+@media (max-width:640px){ #minimap{width:84px;height:168px} #hudTL{max-width:calc(100vw - 120px)} .hname{font-size:18px} #pattern{min-width:0} }
+
+/* ---------- Feuille de juge ---------- */
+#sheet{position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:rgba(10,5,0,.72);
+  padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));padding-block:20px;overflow-y:auto}
+.paper{background:var(--cream);color:#2b1606;width:min(620px,100%);border-radius:3px;padding:26px 24px;box-shadow:0 30px 80px rgba(0,0,0,.5);display:grid;gap:14px}
+.paper h3{font-family:var(--f-display);font-weight:400;font-size:30px;margin:0;line-height:1.05}
+.paper .sub{font-family:var(--f-ui);letter-spacing:.08em;text-transform:uppercase;font-size:14px;color:var(--saddle)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-family:var(--f-ui);font-size:16px;font-variant-numeric:tabular-nums}
+th,td{padding:6px 6px;border-bottom:1px solid rgba(61,28,2,.18);text-align:left;vertical-align:top}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:var(--saddle);font-weight:600}
+td.r,th.r{text-align:right}
+td small{display:block;font-family:var(--f-body);font-size:12.5px;color:#6b4a2d;line-height:1.35}
+.final{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--f-ui);font-size:20px}
+.final b{font-family:var(--f-display);font-weight:400;font-size:46px;color:var(--brown)}
+.verdict{margin:0;font-size:15px;line-height:1.5;color:#4a2a10}
+.paper .btn{border-color:var(--brown);color:var(--brown)}
+.paper .btn.primary{background:var(--brown);color:var(--cream)}
+.row{display:flex;flex-wrap:wrap;gap:10px}
+
+@media (prefers-reduced-motion:reduce){.toast{animation:none}.card{transition:none}}
+</style>
+</head>
+<body>
+
+
+<div id="stage"></div>
+
+<div class="hud" id="hudTL" hidden>
+  <div class="panel">
+    <div class="ptop"><div class="hname" id="hName">—</div><button class="fold" id="btnFold" type="button" aria-expanded="false">Tuto ▾</button></div>
+    <div class="hrow" id="gaits"></div>
+    <div class="hrow"><span class="chip" id="lead">Pas de galop</span><span class="speed" id="speed">0 km/h</span></div>
+  </div>
+  <div class="panel" id="instrPanel"><div id="instr"></div></div>
+  <div class="panel" id="patternPanel" hidden><div id="pattern"></div></div>
+</div>
+<div class="hud" id="hudTR" hidden><canvas id="minimap" width="240" height="480" aria-label="Plan de la carrière"></canvas></div>
+<div class="hud" id="toasts" aria-live="polite"></div>
+<div class="hud" id="legend" hidden>
+  <span><kbd>↑</kbd> allure +</span><span><kbd>↓</kbd> allure −, reculer à l'arrêt (rappuyer : plus vite)</span>
+  <span><kbd>←</kbd><kbd>→</kbd> rênes, spin à l'arrêt, rollback juste après un stop</span><span><kbd>Maj</kbd> mettre des jambes / placer son cheval</span><span><kbd>Maj</kbd>+<kbd>↑↑</kbd> au pas : départ au galop</span>
+  <span><kbd>Espace</kbd> whoa</span><span><kbd>C</kbd> changement de pied</span><span><kbd>V</kbd> vue</span><span><kbd>R</kbd> recommencer</span><span><kbd>Clic</kbd> glisser : tourner la caméra (double-clic : derrière)</span><span><kbd>Échap</kbd> écurie</span>
+</div>
+<div id="topBtns" hidden><button class="mini" id="btnView" type="button">Vue selle</button><button class="mini" id="btnSound" type="button">Son : oui</button><button class="mini" id="btnMenu" type="button">Écurie</button></div>
+
+<div id="touch" hidden>
+  <div class="pad padL">
+    <span></span><button class="tb" data-k="up" type="button">▲</button><span></span>
+    <button class="tb" data-k="left" type="button">◀</button><button class="tb" data-k="down" type="button">▼</button><button class="tb" data-k="right" type="button">▶</button>
+  </div>
+  <div class="pad padR">
+    <button class="tb" data-k="legs" type="button">JAMBES</button><button class="tb" data-k="whoa" type="button">WHOA</button>
+    <button class="tb" data-k="change" type="button">PIED</button><button class="tb" data-k="reset" type="button">RESET</button>
+  </div>
+</div>
+
+<div id="menu">
+  <div class="wrap">
+    <header class="masthead">
+      <div class="eyebrow">CJ Horses · carrière western</div>
+      <h1>Reining CJ Horses</h1>
+      <p class="lede">Douze chevaux du club, chacun avec ses vrais défauts, tirés du carnet de séances. Choisissez votre monture, puis partez en monte libre ou sur le pattern noté par le juge : base 70, chaque manœuvre de −1,5 à +1,5.</p>
+    </header>
+    <div class="grid" id="horseGrid"></div>
+    <div class="launch">
+      <button class="btn primary" id="goFree" type="button">Monte libre</button>
+      <button class="btn" id="goPattern" type="button">Pattern noté</button>
+      <span class="chosen" id="chosen"></span>
+    </div>
+    <section class="avis" aria-labelledby="avisTitle">
+      <h2 id="avisTitle">Avis des cavaliers</h2>
+      <p class="intro">Vous montez ces chevaux en vrai : dites ce qui sonne faux dans le jeu, une allure trop molle, un spin trop sage, une robe pas tout à fait juste. Chaque avis sert à rapprocher le cheval du jeu de celui du club.</p>
+      <div class="avis-cols">
+        <form id="avisForm" novalidate>
+          <label for="avisHorse">Cheval</label>
+          <select id="avisHorse"></select>
+          <label for="avisText">Votre avis</label>
+          <textarea id="avisText" maxlength="1200" placeholder="Ex. : Doc devrait partir plus vite au galop, et son stop est trop long."></textarea>
+          <button class="btn primary" id="avisSend" type="submit">Envoyer l'avis</button>
+          <div class="state" id="avisState" aria-live="polite">Connexion aux avis…</div>
+        </form>
+        <div>
+          <div class="avis-filter" id="avisFilter" role="group" aria-label="Filtrer par cheval"></div>
+          <div class="avis-list" id="avisList"><div class="empty">Chargement des avis…</div></div>
+        </div>
+      </div>
+    </section>
+    <section class="howto">
+      <div>
+        <h2>Les aides</h2>
+        <div class="keys">
+          <span class="k"><kbd>↑</kbd></span><span>Monter d'une allure : pas, jog, trot allongé, petit galop, galop allongé. Le départ au galop se fait sur le pied de la rêne que vous tenez.</span>
+          <span class="k"><kbd>↓</kbd></span><span>Redescendre d'une allure, ou tapoter pour des demi-arrêts. À l'arrêt, maintenir pour reculer doucement, tête basse.</span>
+          <span class="k"><kbd>↓↓</kbd></span><span>À l'arrêt, double appui sur ↓ en gardant le second enfoncé : le cheval recule plus vite.</span>
+          <span class="k"><kbd>←</kbd><kbd>→</kbd></span><span>Rêne gauche et rêne droite. À l'arrêt, maintenir pour spinner et relâcher un peu avant le compte. Dans les 3 secondes après un sliding stop : rollback de ce côté, et départ au galop.</span>
+          <span class="k"><kbd>Maj</kbd></span><span>Mettre des jambes et placer son cheval, à garder enfoncé : encolure basse, dos remonté, allure tenue et galop uni. Relâchez et il redevient lui-même, défauts compris.</span>
+          <span class="k"><kbd>Maj</kbd><kbd>↑↑</kbd></span><span>Au pas, Maj enfoncé et deux appuis rapides sur ↑ : départ au galop directement, sur le pied de la rêne que vous tenez.</span>
+          <span class="k"><kbd>Espace</kbd></span><span>Whoa. Lancé au galop allongé, c'est un sliding stop.</span>
+          <span class="k"><kbd>C</kbd></span><span>Changement de pied en l'air au galop.</span>
+          <span class="k"><kbd>V</kbd></span><span>Vue extérieure ou vue depuis la selle.</span>
+          <span class="k"><kbd>Glisser</kbd></span><span>Clic gauche maintenu ou doigt sur l'écran : la caméra tourne autour du cheval. Double-clic pour la replacer derrière.</span>
+        </div>
+      </div>
+      <div>
+        <h2>Le pattern de reining</h2>
+        <p>Le pattern officiel du 4-H de l'État de Washington (approuvé en mars 2025). Départ au centre, face au mur du juge. Deux spins à droite puis deux à gauche, avec une hésitation après chaque série. Deux cercles à droite, le premier grand et rapide, le second petit et lent, changement de pied au centre, puis la même chose à gauche. Grand cercle à droite sans le refermer, descente le long du grand côté opposé au juge, stop après le marqueur bleu du centre et rollback à gauche. On remonte, on tourne au fond et on descend côté juge pour un rollback à droite, à au moins 6 m du mur. Dernière descente côté opposé, sliding stop, reculer, et une seconde d'immobilité pour finir. Les tracés sont dessinés au sol.</p>
+      </div>
+      <div>
+        <h2>Un mot sur les chevaux</h2>
+        <p>Les fiches viennent du Western Ride Log. Les robes de Bambi, Shérif, Swift et Cameron sont devinées faute de photo exploitable. Appache a été raccompagné vers le dressage.</p>
+        <p>Modèle 3D du cheval : <a href="https://sketchfab.com/3d-models/horse-realistic-3d-model-demo-free-65d6a70a6721495f938c93e80a5998e4" target="_blank" rel="noopener" style="color:var(--sand)">HORSE - Realistic 3D Model (DEMO FREE)</a> par WildMesh 3D, sous licence <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener" style="color:var(--sand)">CC BY-NC 4.0</a>, recoloré pour chaque cheval. Usage non commercial uniquement.</p>
+        <p>Animations : pack complet « Horse » de WildMesh 3D (repos, pas, trot, galops, pivots), reporté sur le cheval du jeu.</p>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="sheet" hidden>
+  <div class="paper" role="dialog" aria-labelledby="sheetTitle">
+    <div class="sub" id="sheetSub">Feuille de juge</div>
+    <h3 id="sheetTitle">Pattern de reining</h3>
+    <div class="tablewrap"><table id="sheetTable"></table></div>
+    <div class="final"><span>Note finale</span><b id="sheetScore">70</b></div>
+    <p class="verdict" id="sheetVerdict"></p>
+    <div class="row"><button class="btn primary" id="sheetAgain" type="button">Rejouer le pattern</button><button class="btn" id="sheetMenu" type="button">Changer de cheval</button></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="horse-model.js"></script>
+<script src="pack-anims.js"></script>
+<script>
+'use strict';
+/* =========================================================
+   Données chevaux (Western Ride Log, sans Appache)
+   ========================================================= */
+const HORSES = [
+ {name:'Bambi', breed:'Paint horse', robe:'Pie alezan crins lavés', born:2010,
+  text:"Bon petit cheval qui s'éteint si on ne le met pas en avant, se désunit volontiers au galop, s'écroule dans les cercles sans jambes et galère au reculer. Bons rollbacks.",
+  st:{speed:.55,sens:.55,stop:.6,spin:.6,roll:.72,change:.6}, dis:{L:.10,R:.10}, need:5, speedMul:.92, collapse:true, backHard:true,
+  coat:{type:'pie', base:'#efebe5', patch:'#a2532a', mane:'#d6bf8e', hair:'#d8c391', tail:'#d4bd8a', headPatch:true, face:'blaze', faceW:.05, pink:true,
+    blobs:[[0,1.75,-1.68, .16,.24,.18], [0,1.38,-1.58, .24,.24,.2], [0,1.05,-1.48, .32,.3,.22], [-.28,1.15,-1.3, .2,.4,.22], [.28,1.15,-1.3, .2,.4,.22],
+           [-.32,.85,-1.25, .14,.2,.14], [.32,.85,-1.25, .14,.2,.14], [0,1.62,-.78, .22,.1,.2], [-.33,1.25,-.75, .07,.1,.08], [.33,1.25,-.7, .08,.1,.09],
+           [-.3,1.18,-.1, .26,.4,.32], [.3,1.18,-.12, .27,.42,.34], [-.25,1.48,-.22, .1,.12,.14], [.25,1.48,-.22, .1,.12,.14], [0,.98,-.55, .1,.06,.12]]}},
+ {name:'Mercedes', breed:'Quarter horse', robe:'Noire', born:2012,
+  text:"Très désunie en début de séance : il faut la pousser fort pendant la première minute, après elle s'installe.",
+  st:{speed:.7,sens:.6,stop:.65,spin:.6,roll:.6,change:.55}, dis:{L:.16,R:.16}, early:true, need:6, speedMul:1,
+  coat:{type:'solid', base:'#16141a', mane:'#0b0a0c', face:'star', faceW:.02, sheen:.35}},
+ {name:'Playing', breed:'Quarter horse', robe:'Alezane', born:2012,
+  text:"Jument pleine de jus et crack de reining, à condition de garder les jambes en permanence.",
+  st:{speed:.95,sens:.8,stop:.92,spin:.9,roll:.9,change:.88}, dis:{L:.02,R:.02}, need:5, speedMul:1.1,
+  coat:{type:'solid', base:'#94471f', mane:'#7c3916', hair:'#8a4521', face:'blaze', faceW:.02, sheen:.12}},
+ {name:'Black M', breed:'Paint horse', robe:'Pie noir', born:2013,
+  text:"Excellent cheval de reining et de trail, régulier, à mettre en avant mais sans histoires.",
+  st:{speed:.82,sens:.75,stop:.9,spin:.86,roll:.86,change:.86}, dis:{L:.02,R:.02}, need:6, speedMul:1,
+  coat:{type:'pie', base:'#efebe6', patch:'#221a16', mane:'#1a1512', hair:'#dcd6cc', poll:'#1e1916', tail:'#2a2420', blueEye:'both', pink:true,
+    blobs:[[0,2.08,-1.84, .17,.17,.15], [0,1.72,-1.72, .17,.16,.16], [0,1.42,-1.6, .23,.21,.18], [0,1.1,-1.5, .33,.3,.2], [-.25,1.08,-1.3, .2,.32,.2], [.27,1.18,-1.25, .2,.42,.22],
+           [-.15,1.62,-.85, .15,.1,.12], [.2,1.5,-.75, .17,.2,.2], [-.05,1.62,-.4, .2,.1,.18], [-.3,1.15,-.05, .25,.4,.3], [.32,1.2,-.25, .26,.42,.4], [.22,.85,-.62, .14,.12,.16],
+           [.14,.25,-1.23, .08,.26,.09, 1], [.16,.45,-.05, .11,.47,.13, 1], [-.16,.45,-.06, .09,.13,.1, 1], [-.14,.66,-1.2, .06,.07,.06, 1]]}},
+ {name:'Shérif', breed:'Paint horse', robe:'Pie bai', born:2006,
+  text:"Plein de sang et parmi les plus rapides du club, mais s'écroule dans les cercles et les coins sans jambes, et peine sur les transitions descendantes.",
+  st:{speed:.95,sens:.7,stop:.5,spin:.66,roll:.6,change:.62}, dis:{L:.05,R:.05}, need:0, speedMul:1.12, collapse:true, hardDown:true,
+  coat:{type:'pie', base:'#efebe4', patch:'#4a2716', mane:'#e6e0d4', hair:'#e4ded2', poll:'#3a2416', tailTip:'#221a15', headPatch:'right', socks:{lf:.62,rf:.62,lh:.62,rh:.62},
+    face:'blaze', faceW:.06, faceOff:-.03, blueEye:'L',
+    blobs:[[-.2,1.1,-1.42, .18,.22,.16], [.18,1.0,-1.43, .1,.12,.1], [.3,1.3,-1.12, .22,.36,.18], [-.33,1.2,-.2, .27,.45,.48], [.32,1.22,-.32, .28,.42,.4],
+           [.12,1.55,-.3, .14,.12,.3], [-.15,.62,-1.18, .06,.07,.06, 1], [.15,.58,-1.2, .05,.06,.05, 1],
+           [-.025,1.91,-2.04, .025,.025,.04, 1], [-.045,1.82,-2.08, .02,.022,.04, 1], [-.085,1.86,-1.95, .03,.03,.03, 1], [-.075,1.74,-2.02, .022,.022,.025, 1]]}},
+ {name:'Jack', breed:'Quarter horse', robe:'Alezan', born:2017,
+  text:"Gentil et super en reining, il avance tout seul. Repart de travers après une figure si on ne le redresse pas.",
+  st:{speed:.78,sens:.7,stop:.86,spin:.9,roll:.86,change:.76}, dis:{L:.03,R:.03}, need:0, speedMul:1, driftAfter:true,
+  coat:{type:'solid', base:'#9b4a23', mane:'#8a401c', face:'star', faceW:.016}},
+ {name:'Grease', breed:'Appaloosa', robe:'Grise', born:2005,
+  text:"Bonne jument d'expérience et parmi les plus rapides, mais elle a du mal à partir au galop à gauche et à changer de pied vers la gauche.",
+  st:{speed:.92,sens:.55,stop:.55,spin:.5,roll:.5,change:.45}, dis:{L:.22,R:.03}, need:0, speedMul:1.1, hardLead:'L',
+  coat:{type:'solid', base:'#d6d3cd', mane:'#55524e', hair:'#5a5753', poll:'#55524e', tail:'#6a6661', tailTip:'#c4bfb6', pink:true}},
+ {name:'Cameron', breed:'Origine inconnue', robe:'Bai', born:2008,
+  text:"Très bon cheval à mettre en avant, éperons obligatoires. Pas bien rapide, sauf en ligne droite où il se lâche. Si on l'accompagne, il apprend le pattern et le fait tout seul.",
+  st:{speed:.6,sens:.4,stop:.82,spin:.76,roll:.82,change:.72}, dis:{L:.03,R:.03}, need:3, speedMul:.86, straightFast:true, spurs:true, anticipate:true,
+  coat:{type:'solid', base:'#6c3418', mane:'#120d0b', points:.5, socks:{lh:.12, rh:.05}, face:'star', faceW:.016}},
+ {name:'Doc', breed:'Quarter horse', robe:'Alezan', born:2004,
+  text:"Excellent mais complexe, et dangereux sur les lignes droites où il s'embale. Ne pas le porter, demi-arrêts légers.",
+  st:{speed:.95,sens:.72,stop:.82,spin:.8,roll:.8,change:.82}, dis:{L:.04,R:.04}, need:0, speedMul:1.1, runs:true, heavy:true,
+  coat:{type:'solid', base:'#a3592c', mane:'#9a5228', hair:'#a35a2e', face:'blaze', faceW:.042, pink:true, sheen:.08}},
+ {name:'Swift', breed:'Origine inconnue', robe:'Pie bai', born:null,
+  text:"Petites allures, une tendance à dériver qui demande de le travailler droit, jambes à l'appui, et un galop à droite difficile : il part souvent à faux.",
+  st:{speed:.45,sens:.6,stop:.55,spin:.55,roll:.55,change:.5}, dis:{L:.05,R:.14}, need:0, speedMul:.82, drift:true, hardLead:'R',
+  coat:{type:'pie', base:'#6f3519', patch:'#f1ede6', mane:'#141010', points:.55, socks:{lf:.22,rf:.14,lh:.32,rh:.32}, face:'star', faceW:.026,
+    blobs:[[-.3,1.28,-1.06, .27,.46,.2], [0,1.64,-1.12, .3,.13,.16], [.3,1.3,-1.08, .26,.42,.17], [0,1.64,-.16, .24,.1,.22]]}},
+ {name:'GF', breed:'Quarter horse', robe:'Isabelle', born:null,
+  text:"Cheval incroyable à la main très légère. Part au quart de tour, se déhanche au galop à droite et file en fence to fence si on le laisse.",
+  st:{speed:.85,sens:.95,stop:.86,spin:.9,roll:.86,change:.82}, dis:{L:.02,R:.09}, need:0, speedMul:1.02, quick:true, fenceRun:true,
+  coat:{type:'solid', base:'#c79a5c', mane:'#1c140e', points:.52}},
+ {name:'Big Mac', breed:'Quarter horse', robe:'Alezan crins lavés', born:null,
+  text:"Très bon cheval, très sensible : main légère obligatoire, sinon il surréagit à la rêne.",
+  st:{speed:.8,sens:.92,stop:.82,spin:.82,roll:.84,change:.78}, dis:{L:.04,R:.04}, need:0, speedMul:1, sensitive:true,
+  coat:{type:'solid', base:'#b4663a', mane:'#c08752', face:'blaze', faceW:.04, socks:{lf:.16,rf:.16,lh:.22,rh:.22}}},
+];
+
+const GAITS = ['Arrêt','Pas','Jog','Trot allongé','Petit galop','Galop allongé'];
+const GAIT_SPEED = [0, 1.6, 2.7, 4.4, 4.8, 9.2];
+const TURN_RATE = [0, 1.05, 1.05, .9, 1.1, .78];
+const W = 17, L = 40, MARK = 28;       // demi-largeur, demi-longueur de la carrière, marqueurs
+const DEG = Math.PI/180;
+
+const $ = s => document.querySelector(s);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const lerp = (a,b,t) => a + (b-a)*t;
+const fr = (n, d=1) => n.toLocaleString('fr-FR', {minimumFractionDigits:d, maximumFractionDigits:d});
+const fmtScore = s => (s>0?'+':s<0?'−':'') + fr(Math.abs(s),1);
+const roundHalf = v => Math.round(v*2)/2;
+function hashStr(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+function rng(seed){let a=seed;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+/* ---------- Records (confort par joueur) ---------- */
+const store = {
+  get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+};
+let records = store.get('cj-records') || {};
+
+/* =========================================================
+   Menu
+   ========================================================= */
+let selected = store.get('cj-horse') ?? 2;
+if (!HORSES[selected]) selected = 2;
+function coatCss(c){
+  if (c.type==='pie') return `radial-gradient(circle at 28% 34%, ${c.patch} 0 27%, transparent 28%), radial-gradient(circle at 74% 70%, ${c.patch} 0 23%, transparent 24%), radial-gradient(circle at 70% 22%, ${c.patch} 0 11%, transparent 12%), ${c.base}`;
+  if (c.type==='leopard') return `radial-gradient(circle at 30% 30%, ${c.patch} 0 7%, transparent 8%), radial-gradient(circle at 62% 42%, ${c.patch} 0 6%, transparent 7%), radial-gradient(circle at 44% 70%, ${c.patch} 0 7%, transparent 8%), radial-gradient(circle at 76% 72%, ${c.patch} 0 5%, transparent 6%), radial-gradient(circle at 22% 62%, ${c.patch} 0 5%, transparent 6%), ${c.base}`;
+  return `radial-gradient(circle at 35% 30%, rgba(255,255,255,.18), transparent 55%), linear-gradient(160deg, ${c.base}, ${c.base} 62%, ${c.mane})`;
+}
+function renderMenu(){
+  const g = $('#horseGrid'); g.innerHTML='';
+  const labels = [['Vitesse','speed'],['Sensibilité','sens'],['Stop','stop'],['Spin','spin'],['Rollback','roll'],['Changements','change']];
+  HORSES.forEach((h,i)=>{
+    const b = document.createElement('button');
+    b.className='card'; b.type='button'; b.id='horse-'+i;
+    b.setAttribute('aria-pressed', i===selected ? 'true':'false');
+    const age = h.born ? `${2026-h.born} ans` : 'âge inconnu';
+    const rec = records[h.name];
+    b.innerHTML = `<div class="card-top"><span class="coat" style="background:${coatCss(h.coat)}"></span><div><div class="card-name">${h.name}</div><div class="card-meta">${h.breed} · ${h.robe} · ${age}</div></div></div>
+      <p class="card-text">${h.text}</p>
+      <div class="stats">${labels.map(([l,k])=>`<span>${l}</span><span class="bar"><i style="width:${Math.round(h.st[k]*100)}%"></i></span>`).join('')}</div>
+      <div class="record">${rec ? 'Record pattern : '+fr(rec,1) : ''}${avisCount(h.name) ? `<span class="avis-count">${rec ? ' · ' : ''}${avisCount(h.name)} avis</span>` : ''}</div>`;
+    b.addEventListener('click',()=>{selected=i;store.set('cj-horse',i);renderMenu();});
+    g.appendChild(b);
+  });
+  $('#chosen').textContent = `En selle sur ${HORSES[selected].name}`;
+}
+/* ---------- Avis des cavaliers (base partagée) ---------- */
+let AVIS = [], avisFilter = 'Tous', avisDB = null, avisUser = null, myId = null, isOwnerV = false, canWrite = true;
+const avisCount = n => AVIS.filter(a => a.horse === n && !a.done).length;
+const esc = t => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function fmtDate(ms){ try{ return new Date(ms).toLocaleDateString('fr-FR', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}); }catch(e){ return ''; } }
+$('#avisHorse').innerHTML = HORSES.map(h => `<option value="${esc(h.name)}">${esc(h.name)}</option>`).join('');
+function renderAvisFilter(){
+  const names = ['Tous', ...HORSES.map(h => h.name)];
+  $('#avisFilter').innerHTML = names.map(n => {
+    const c = n==='Tous' ? AVIS.length : AVIS.filter(a => a.horse===n).length;
+    return `<button type="button" class="chipf" data-h="${esc(n)}" aria-pressed="${n===avisFilter}">${esc(n)}${c ? ' · '+c : ''}</button>`;
+  }).join('');
+}
+$('#avisFilter').addEventListener('click', e => { const b = e.target.closest('.chipf'); if (!b) return; avisFilter = b.dataset.h; renderAvis(); });
+async function renderAvis(){
+  renderAvisFilter();
+  const list = AVIS.filter(a => avisFilter==='Tous' || a.horse===avisFilter);
+  const box = $('#avisList');
+  if (!avisDB){ box.innerHTML = '<div class="empty">Les avis des cavaliers s\'affichent ici pour Marine. Les vôtres partent en commentaire.</div>'; return; }
+  if (!list.length){ box.innerHTML = `<div class="empty">${avisFilter==='Tous' ? 'Aucun avis pour l\'instant. Le premier qui écrit choisit le sujet.' : 'Aucun avis sur '+esc(avisFilter)+' pour l\'instant.'}</div>`; return; }
+  let profiles = {};
+  try{ if (avisUser && avisUser.profiles) profiles = await avisUser.profiles([...new Set(list.map(a => a.author).filter(Boolean))]) || {}; }catch(e){}
+  box.innerHTML = '';
+  for (const a of list){
+    const el = document.createElement('article'); el.className = 'note' + (a.done ? ' done' : '');
+    const who = (profiles[a.author] && profiles[a.author].name) || (a.author===myId ? 'Vous' : 'Un cavalier');
+    el.innerHTML = `<div class="note-head"><b></b><span class="who"></span><span>${esc(fmtDate(a.at))}</span>${a.done ? '<span class="tag-done">Pris en compte</span>' : ''}</div><p></p><div class="note-actions"></div>`;
+    el.querySelector('b').textContent = a.horse; el.querySelector('.who').textContent = who; el.querySelector('p').textContent = a.text;
+    const act = el.querySelector('.note-actions');
+    if (isOwnerV){ const b = document.createElement('button'); b.type='button'; b.textContent = a.done ? 'Rouvrir' : 'Pris en compte'; b.onclick = () => avisDB.doc('avis/'+a.id).update({done:!a.done}).catch(()=>{}); act.appendChild(b); }
+    if (isOwnerV || (myId && a.author===myId)){
+      const d = document.createElement('button'); d.type='button'; d.textContent = 'Supprimer';
+      d.onclick = () => { if (d.dataset.armed){ avisDB.doc('avis/'+a.id).delete().catch(()=>{}); } else { d.dataset.armed = '1'; d.textContent = 'Confirmer la suppression'; setTimeout(()=>{ d.dataset.armed=''; d.textContent='Supprimer'; }, 4000); } };
+      act.appendChild(d);
+    }
+    if (!act.children.length) act.remove();
+    box.appendChild(el);
+  }
+}
+$('#avisForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const text = $('#avisText').value.trim(), horse = $('#avisHorse').value, st = $('#avisState');
+  if (!avisDB || !canWrite){ openAvisComposer(horse); return; }
+  if (text.length < 3){ st.textContent = 'Écrivez au moins quelques mots sur le cheval.'; $('#avisText').focus(); return; }
+  $('#avisSend').disabled = true; st.textContent = 'Envoi…';
+  try{
+    await avisDB.collection('avis').add({horse, text: text.slice(0,1200), author: myId || null, at: Date.now(), done:false});
+    $('#avisText').value = ''; st.textContent = `Merci, votre avis sur ${horse} est enregistré.`;
+    avisFilter = horse; renderAvis();
+  }catch(err){
+    if (err && /invalid_argument|not_granted|forbidden|permission/.test(err.code||'')){ canWrite = false; avisCommentMode(); openAvisComposer(horse); }
+    else st.textContent = 'L\'avis n\'est pas parti, réessayez dans un instant.';
+  }finally{ $('#avisSend').disabled = false; }
+});
+// visiteurs du lien partagé : ils ne peuvent pas écrire dans les avis du jeu, mais peuvent laisser un commentaire Claude
+// (bulle de commentaire de claude.ai, accrochée à la fiche du cheval) : Marine et Claude le lisent
+let avisComments = null;
+// le lien public de Claude est en lecture seule : l'avis part alors par WhatsApp (ou se copie), sans compte Claude
+function avisCommentMode(){
+  $('#avisSend').textContent = 'Envoyer sur WhatsApp';
+  if (!$('#avisCopy')){ const b = document.createElement('button'); b.type = 'button'; b.id = 'avisCopy'; b.className = 'btn'; b.textContent = 'Copier mon avis'; b.style.marginLeft = '8px';
+    b.onclick = async () => { const t = avisMessage(); if (!t) return; try{ await navigator.clipboard.writeText(t); $('#avisState').textContent = 'Avis copié : collez-le dans un message à Marine.'; }catch(e){ $('#avisText').select(); $('#avisState').textContent = 'Sélectionnez le texte et copiez-le pour l\'envoyer à Marine.'; } };
+    $('#avisSend').after(b); }
+  $('#avisState').textContent = 'Écrivez votre avis, puis envoyez-le à Marine sur WhatsApp ou copiez-le. Pas besoin de compte Claude.';
+}
+function avisMessage(){
+  const text = $('#avisText').value.trim(), horse = $('#avisHorse').value;
+  if (text.length < 3){ $('#avisState').textContent = 'Écrivez au moins quelques mots sur le cheval.'; $('#avisText').focus(); return null; }
+  return `Avis sur le jeu Reining CJ Horses, cheval : ${horse}\n${text}`;
+}
+async function openAvisComposer(horse){
+  const st = $('#avisState');
+  if (!avisComments){ const t = avisMessage(); if (!t) return;
+    const a = document.createElement('a'); a.href = 'https://wa.me/?text=' + encodeURIComponent(t); a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove();
+    st.textContent = 'WhatsApp s\'ouvre : choisissez Marine et envoyez. Si rien ne s\'ouvre, utilisez « Copier mon avis ».'; return; }
+  const i = HORSES.findIndex(h => h.name===horse), card = document.getElementById('horse-'+i);
+  try{
+    const r = await avisComments.openComposer({element: card || $('#avisForm')});
+    if (r && r.opened) st.textContent = `Écrivez votre avis sur ${horse} dans la bulle, puis envoyez-le.`;
+  }catch(err){
+    if (err && err.code==='unavailable'){ avisComments = null; return openAvisComposer(horse); }   // pas de commentaires sur ce lien : WhatsApp
+    else if (err && err.code==='rate_limited') st.textContent = 'Un instant, puis réessayez.';
+    else st.textContent = 'La bulle de commentaire ne s\'est pas ouverte, réessayez.';
+  }
+}
+document.addEventListener('click', e => { const c = e.target.closest('.card'); if (c && c.id.startsWith('horse-')){ const h = HORSES[+c.id.slice(6)]; if (h) $('#avisHorse').value = h.name; } });
+(async () => {
+  const st = $('#avisState');
+  const timer = setTimeout(() => { if (!avisDB){ st.textContent = 'Les avis ne répondent pas pour l\'instant.'; renderAvis(); } }, 10000);
+  try{
+    const C = window.claude;
+    if (!C || !C.use){ clearTimeout(timer); canWrite = false; avisCommentMode(); renderAvis(); return; }   // hors de claude.ai (site GitHub) : avis par WhatsApp ou copie
+    const [db, user, com] = await Promise.all([C.use('db'), C.use('user'), C.use('comments')]);
+    avisUser = user; avisComments = com;
+    if (user){ try{ myId = await user.id(); }catch(e){} try{ isOwnerV = !!(await user.isOwner()); }catch(e){} try{ const w = await user.can('data.write'); if (w === false) canWrite = false; }catch(e){} }
+    if (!db){ clearTimeout(timer); canWrite = false; avisCommentMode(); renderAvis(); return; }
+    avisDB = db;
+    if (canWrite) st.textContent = ''; else avisCommentMode();
+    db.collection('avis').orderBy('at', 'desc').onSnapshot(snap => {
+      clearTimeout(timer);
+      AVIS = snap.docs.map(d => ({id: d.id, ...d.data()}));
+      renderAvis(); if (!$('#menu').hidden) renderMenu();
+    }, err => { clearTimeout(timer); st.textContent = 'Les avis ne répondent pas pour l\'instant.'; });
+  }catch(e){ clearTimeout(timer); st.textContent = 'Les avis ne répondent pas pour l\'instant.'; renderAvis(); }
+})();
+renderMenu();
+
+/* =========================================================
+   Three.js : scène
+   ========================================================= */
+const stage = $('#stage');
+const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+stage.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const SKY_H = new THREE.Color('#e9c99a');
+scene.fog = new THREE.Fog(SKY_H, 70, 330);
+const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 900);            // vue depuis la selle
+const tpCam = new THREE.PerspectiveCamera(52, 1, 0.1, 900); scene.add(tpCam);   // vue extérieure
+let view = store.get('cj-view') || 'ext';
+
+function resize(){
+  const w = stage.clientWidth || window.innerWidth, h = stage.clientHeight || window.innerHeight;
+  renderer.setSize(w, h, false); for (const c of [camera, tpCam]){ c.aspect = w/h; c.updateProjectionMatrix(); }
+}
+window.addEventListener('resize', resize);
+
+// Ciel : dégradé de fin d'après-midi
+{
+  const g = new THREE.SphereGeometry(600, 32, 16);
+  const m = new THREE.ShaderMaterial({side:THREE.BackSide, depthWrite:false, fog:false,
+    uniforms:{top:{value:new THREE.Color('#6f93b8')}, mid:{value:new THREE.Color('#d9c3a2')}, bot:{value:SKY_H}},
+    vertexShader:`varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`uniform vec3 top; uniform vec3 mid; uniform vec3 bot; varying vec3 vP;
+      void main(){ float y = vP.y; vec3 c = y>0.08 ? mix(mid, top, smoothstep(0.08,0.6,y)) : mix(bot, mid, smoothstep(-0.05,0.08,y)); gl_FragColor = vec4(c,1.0);}`});
+  scene.add(new THREE.Mesh(g, m));
+}
+scene.add(new THREE.HemisphereLight(0xfff1dc, 0x6b5638, 0.72));
+const rim = new THREE.DirectionalLight(0xbfd4ff, .45); rim.position.set(50, 30, 60); scene.add(rim);
+const sun = new THREE.DirectionalLight(0xfff0d8, .7); sun.position.set(-20, 60, -10); scene.add(sun);
+const fill = new THREE.DirectionalLight(0xffe2c0, .35); fill.position.set(25, 40, 30); scene.add(fill);
+
+function canvasTex(w, h, draw, repeat){
+  const c = document.createElement('canvas'); c.width=w; c.height=h; draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+  if (repeat){ t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
+  t.anisotropy = 4; return t;
+}
+// Herbe
+{
+  const tex = canvasTex(256,256,(x,w,h)=>{x.fillStyle='#7d8a4e';x.fillRect(0,0,w,h);const r=rng(7);
+    for(let i=0;i<5000;i++){const v=r();x.fillStyle=`rgba(${60+v*50|0},${80+v*40|0},${30+v*20|0},.35)`;x.fillRect(r()*w,r()*h,1+r()*2,1+r()*3)}},[60,60]);
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(900,900), new THREE.MeshLambertMaterial({map:tex}));
+  g.rotation.x = -Math.PI/2; scene.add(g);
+}
+// Sable de la carrière
+const SAND_W = W+0.4, SAND_L = L+0.4;
+{
+  const tex = canvasTex(512,512,(x,w,h)=>{x.fillStyle='#b5713f';x.fillRect(0,0,w,h);const r=rng(11);
+    for(let i=0;i<26000;i++){const v=r();x.fillStyle=`rgba(${150+v*60|0},${90+v*50|0},${50+v*35|0},${.25+r()*.3})`;x.fillRect(r()*w,r()*h,1+r()*1.5,1+r()*1.5)}
+    for(let i=0;i<260;i++){const cx=r()*w, cy=r()*h; x.fillStyle='rgba(110,65,35,.28)'; x.beginPath(); x.ellipse(cx,cy,3+r()*2,4+r()*2,r()*3,0,7); x.fill(); x.fillStyle='rgba(235,190,150,.25)'; x.beginPath(); x.ellipse(cx+2,cy+2,3,4,0,0,7); x.fill();}
+    x.strokeStyle='rgba(120,90,55,.18)';x.lineWidth=2;for(let i=0;i<60;i++){x.beginPath();const y=r()*h;x.moveTo(0,y);x.bezierCurveTo(w*.3,y+r()*20-10,w*.6,y+r()*20-10,w,y);x.stroke()}},[6,14]);
+  const s = new THREE.Mesh(new THREE.PlaneGeometry(SAND_W*2, SAND_L*2), new THREE.MeshLambertMaterial({map:tex, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2}));
+  s.rotation.x = -Math.PI/2; s.position.y = 0.025; scene.add(s);
+}
+// Manège couvert (d'après les photos du manège du club)
+const AISLE = 4.6, COLX = W + 0.4 + AISLE, EAVE = 6.2, RIDGE = 10.4, BAY = 8;
+const steel = new THREE.MeshLambertMaterial({color:'#2f3236'});
+const woodWall = new THREE.MeshLambertMaterial({map:canvasTex(512,128,(x,w,h)=>{
+  x.fillStyle='#b98a57';x.fillRect(0,0,w,h);const r=rng(5);
+  for(let i=0;i<h;i+=16){x.fillStyle=`rgba(90,55,25,${.15+r()*.15})`;x.fillRect(0,i,w,2);}
+  for(let i=0;i<1400;i++){x.fillStyle=`rgba(${120+r()*60|0},${80+r()*40|0},${40+r()*20|0},.25)`;x.fillRect(r()*w,r()*h,4+r()*30,1);}
+},[10,1])});
+{
+  const fx = W+0.35, fz = L+0.35, kh = 1.35;
+  // pare-bottes en bois tout autour de la carrière
+  const longW = new THREE.Mesh(new THREE.BoxGeometry(.12, kh, fz*2+.24), woodWall);
+  for (const sx of [-1,1]){ const m = longW.clone(); m.position.set(sx*fx, kh/2, 0); scene.add(m); }
+  const endW = new THREE.Mesh(new THREE.BoxGeometry(fx*2, kh, .12), woodWall);
+  for (const sz of [-1,1]){ const m = endW.clone(); m.position.set(0, kh/2, sz*fz); scene.add(m); }
+  const cap = new THREE.MeshLambertMaterial({color:'#8c6a45'});
+  for (const sx of [-1,1]){ const c = new THREE.Mesh(new THREE.BoxGeometry(.22,.06,fz*2+.3), cap); c.position.set(sx*fx, kh+.03, 0); scene.add(c); }
+  for (const sz of [-1,1]){ const c = new THREE.Mesh(new THREE.BoxGeometry(fx*2+.3,.06,.22), cap); c.position.set(0, kh+.03, sz*fz); scene.add(c); }
+  // allées en béton et tribunes latérales
+  const conc = new THREE.MeshLambertMaterial({color:'#9c968c'});
+  for (const sx of [-1,1]){ const a = new THREE.Mesh(new THREE.BoxGeometry(AISLE+1, .1, fz*2+8), conc); a.position.set(sx*(fx+AISLE/2+.4), .05, 0); scene.add(a); }
+  for (const sz of [-1,1]){ const a = new THREE.Mesh(new THREE.BoxGeometry(COLX*2+1, .1, 4), conc); a.position.set(0, .05, sz*(fz+2.1)); scene.add(a); }
+  // poteaux, fermes du toit en acier
+  const zs = []; for (let z=-fz-2; z<=fz+2.01; z+=BAY) zs.push(z);
+  const colGeo = new THREE.BoxGeometry(.4, EAVE, .4);
+  const beamLen = Math.hypot(COLX, RIDGE-EAVE), beamAng = Math.atan2(RIDGE-EAVE, COLX);
+  const beamGeo = new THREE.BoxGeometry(beamLen+.6, .85, .32);
+  for (const z of zs){
+    for (const sx of [-1,1]){
+      const c = new THREE.Mesh(colGeo, steel); c.position.set(sx*COLX, EAVE/2, z); scene.add(c);
+      const b = new THREE.Mesh(beamGeo, steel); b.position.set(sx*COLX/2, (EAVE+RIDGE)/2 - .2, z); b.rotation.z = -sx*beamAng; scene.add(b);
+      // barrière de l'allée extérieure
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(.06,.06,BAY), steel); rail.position.set(sx*(COLX+.05), 1.05, z+BAY/2); if (z+BAY < fz+6) scene.add(rail);
+    }
+  }
+  // plafond : lames de bois et bandes lumineuses
+  const ceilTex = canvasTex(256,512,(x,w,h)=>{
+    x.fillStyle='#9b7146';x.fillRect(0,0,w,h);const r=rng(9);
+    for(let i=0;i<h;i+=10){x.fillStyle=`rgba(60,35,15,${.25+r()*.2})`;x.fillRect(0,i,w,2);}
+    x.fillStyle='rgba(255,250,236,1)';x.fillRect(w*.46,0,w*.08,h);
+  },[1, Math.round(fz/4)]);
+  const ceilMat = new THREE.MeshBasicMaterial({map:ceilTex, side:THREE.DoubleSide, color:new THREE.Color(.95,.9,.85)});
+  for (const sx of [-1,1]){
+    const g = new THREE.Group(); g.position.set(sx*COLX/2, (EAVE+RIDGE)/2 + .28, 0); g.rotation.z = -sx*beamAng; scene.add(g);
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(beamLen+.6, fz*2+8.4), ceilMat); p.rotation.x = -Math.PI/2; g.add(p);
+  }
+  // pignons : bardage métallique, grande verrière, portail en bois
+  const clad = new THREE.MeshLambertMaterial({map:canvasTex(256,256,(x,w,h)=>{x.fillStyle='#b9bcbf';x.fillRect(0,0,w,h);for(let i=0;i<w;i+=8){x.fillStyle='rgba(60,65,70,.18)';x.fillRect(i,0,2,h);}},[6,2]), side:THREE.DoubleSide});
+  const glass = new THREE.MeshBasicMaterial({color:'#e9efe9'});
+  for (const sz of [-1,1]){
+    const zw = sz*(fz+4.2);
+    const shape = new THREE.Shape(); shape.moveTo(-COLX-.3,0); shape.lineTo(COLX+.3,0); shape.lineTo(COLX+.3,EAVE); shape.lineTo(0,RIDGE+.4); shape.lineTo(-COLX-.3,EAVE); shape.closePath();
+    const g = new THREE.Mesh(new THREE.ShapeGeometry(shape), clad); g.position.set(0,0,zw); scene.add(g);
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(COLX*1.3, 2.6), glass); win.position.set(0, EAVE-.3, zw - sz*.05); win.rotation.y = sz>0 ? Math.PI : 0; scene.add(win);
+    const lower = new THREE.Mesh(new THREE.BoxGeometry(COLX*2, 2.6, .15), woodWall); lower.position.set(0, 1.3, zw - sz*.1); scene.add(lower);
+    const gate = new THREE.Mesh(new THREE.PlaneGeometry(4.5, 2.4), new THREE.MeshLambertMaterial({color:'#7a5532', side:THREE.DoubleSide})); gate.position.set(0, 1.25, zw - sz*.2); scene.add(gate);
+  }
+  // côtés : bardage haut, bas ouvert sur l'extérieur
+  for (const sx of [-1,1]){
+    const up = new THREE.Mesh(new THREE.PlaneGeometry(fz*2+8.4, 2.2), clad); up.position.set(sx*(COLX+.25), EAVE-1.1, 0); up.rotation.y = sx*Math.PI/2; scene.add(up);
+  }
+  // suspensions lumineuses
+  const lampGeo = new THREE.CylinderGeometry(.18,.38,.35,12), lampMat = new THREE.MeshBasicMaterial({color:'#fff4dc'});
+  const lamps = [];
+  for (const z of zs) for (const t of [.3,.68]) for (const sx of [-1,1]) lamps.push([sx*COLX*t, EAVE + (RIDGE-EAVE)*(1-t) - 1.1, z]);
+  const li = new THREE.InstancedMesh(lampGeo, lampMat, lamps.length); const m4 = new THREE.Matrix4();
+  lamps.forEach((p,i)=>{ m4.makeTranslation(p[0],p[1],p[2]); li.setMatrixAt(i,m4); }); scene.add(li);
+  // drapeaux suspendus aux fermes
+  const flag = draw => new THREE.MeshLambertMaterial({map:canvasTex(64,128,draw), side:THREE.DoubleSide});
+  const bands = (cols, vertical=true) => (x,w,h)=>{ cols.forEach((c,i)=>{ x.fillStyle=c; vertical ? x.fillRect(0,i*h/cols.length,w,h/cols.length+1) : x.fillRect(i*w/cols.length,0,w/cols.length+1,h); }); };
+  const flags = [
+    flag(bands(['#0055a4','#ffffff','#ef4135'])),
+    flag((x,w,h)=>{ x.fillStyle='#d52b1e';x.fillRect(0,0,w,h);x.fillStyle='#fff';x.fillRect(0,h*.25,w,h*.5);x.fillStyle='#d52b1e';x.beginPath();x.arc(w/2,h/2,w*.22,0,7);x.fill(); }),
+    flag((x,w,h)=>{ for(let i=0;i<13;i++){x.fillStyle=i%2?'#fff':'#b22234';x.fillRect(i*w/13,0,w/13+1,h);} x.fillStyle='#3c3b6e';x.fillRect(0,0,w*.54,h*.4); }),
+    flag((x,w,h)=>{ x.fillStyle='#012169';x.fillRect(0,0,w,h);x.strokeStyle='#fff';x.lineWidth=14;x.beginPath();x.moveTo(0,0);x.lineTo(w,h);x.moveTo(w,0);x.lineTo(0,h);x.stroke();x.fillStyle='#fff';x.fillRect(w*.38,0,w*.24,h);x.fillRect(0,h*.42,w,h*.16);x.fillStyle='#c8102e';x.fillRect(w*.44,0,w*.12,h);x.fillRect(0,h*.46,w,h*.08); }),
+    flag(bands(['#009246','#ffffff','#ce2b37'])),
+    flag(bands(['#000000','#dd0000','#ffce00'])),
+  ];
+  let fi = 0;
+  for (const z of zs) for (const sx of [-1,1]){
+    const f = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 2.3), flags[fi++ % flags.length]);
+    f.position.set(sx*COLX*.86, EAVE + (RIDGE-EAVE)*.14 - 1.75, z + .5); f.rotation.y = Math.PI/2; scene.add(f);
+  }
+  // échelles des juges sur l'allée
+  const ladderMat = new THREE.MeshLambertMaterial({color:'#d9dcde'});
+  for (const [x,z] of [[-(fx+1.2),-8],[-(fx+1.2),9],[fx+1.2,-14],[fx+1.2,4]]){
+    const lg = new THREE.Group();
+    for (const dx of [-.35,.35]) for (const dz of [-.45,.45]){ const leg = new THREE.Mesh(new THREE.BoxGeometry(.05,1.9,.05), ladderMat); leg.position.set(dx*(1-.2*(dz>0)), .95, dz); leg.rotation.x = dz>0 ? -.18 : .18; lg.add(leg); }
+    for (let y=.35;y<1.8;y+=.35){ const st = new THREE.Mesh(new THREE.BoxGeometry(.75,.04,.18), ladderMat); st.position.set(0,y,-.45+y*.15); lg.add(st); }
+    const top = new THREE.Mesh(new THREE.BoxGeometry(.8,.06,.6), ladderMat); top.position.y = 1.9; lg.add(top);
+    lg.position.set(x, .1, z); lg.rotation.y = x<0 ? Math.PI/2 : -Math.PI/2; scene.add(lg);
+  }
+  // marqueurs de pattern : plaques sur le pare-bottes et cônes
+  const mk = (z, color) => {
+    for (const sx of [-1,1]) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(.06,.55,.55), new THREE.MeshLambertMaterial({color}));
+      m.position.set(sx*(fx-.1), 1.0, z); scene.add(m);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(.24,.6,12), new THREE.MeshLambertMaterial({color}));
+      cone.position.set(sx*(fx-0.9), .3, z); scene.add(cone);
+    }
+  };
+  mk(-MARK, '#e0702e'); mk(MARK, '#e0702e'); mk(0, '#3e7fb3');
+  // le juge, assis au milieu du grand côté
+  const jg = new THREE.Group(), wood = new THREE.MeshLambertMaterial({color:'#7a5232'}), dark = new THREE.MeshLambertMaterial({color:'#3a2a1e'});
+  const plat = new THREE.Mesh(new THREE.BoxGeometry(2.2,.6,2.6), wood); plat.position.y = .3; jg.add(plat);
+  const desk = new THREE.Mesh(new THREE.BoxGeometry(.7,.9,2.2), wood); desk.position.set(.55,1.05,0); jg.add(desk);
+  const top2 = new THREE.Mesh(new THREE.BoxGeometry(.9,.06,2.4), dark); top2.position.set(.55,1.52,0); jg.add(top2);
+  const chair = new THREE.Mesh(new THREE.BoxGeometry(.5,.5,.5), dark); chair.position.set(-.35,.85,0); jg.add(chair);
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(.2,.24,.75,10), new THREE.MeshLambertMaterial({color:'#2d4a63'})); torso.position.set(-.3,1.45,0); jg.add(torso);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.15,12,10), new THREE.MeshLambertMaterial({color:'#e2b48f'})); head.position.set(-.28,1.98,0); jg.add(head);
+  const brim = new THREE.Mesh(new THREE.CylinderGeometry(.32,.32,.03,16), new THREE.MeshLambertMaterial({color:'#c9a46a'})); brim.position.set(-.28,2.1,0); jg.add(brim);
+  const crown = new THREE.Mesh(new THREE.CylinderGeometry(.13,.16,.17,12), brim.material); crown.position.set(-.28,2.19,0); jg.add(crown);
+  const jsign = new THREE.Mesh(new THREE.PlaneGeometry(1.6,.42), new THREE.MeshBasicMaterial({map: canvasTex(512,128,(x,w,h)=>{ x.fillStyle='#2b1d12'; x.fillRect(0,0,w,h); x.strokeStyle='#e9d6b0'; x.lineWidth=6; x.strokeRect(8,8,w-16,h-16); x.fillStyle='#e9d6b0'; x.font='bold 70px Georgia'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('JUGE', w/2, h/2+4); })}));
+  jsign.position.set(.92,1.1,0); jsign.rotation.y = Math.PI/2; jg.add(jsign);
+  jg.position.set(-(fx+1.9), 0, 0); scene.add(jg);
+  buildPatternGround();
+}
+// directives au sol du pattern : cercles, ligne de descente, marques d'arrêt, centre
+var patternGround;   // créé avec la carrière (sans valeur initiale : la carrière est construite plus haut)
+var CIRC = { big:13, small:8 };
+function buildPatternGround(){
+  const CIRC = { big:13, small:8 };
+  patternGround = new THREE.Group(); patternGround.visible = false; scene.add(patternGround);
+  const mat = op => new THREE.MeshBasicMaterial({color:'#fffaf0', transparent:true, opacity:op, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-2});
+  const part = tag => { const g = new THREE.Group(); g.userData.tag = tag; patternGround.add(g); return g; };
+  const ring = (g, cz, r, dashed) => {
+    const n = dashed ? 48 : 1;
+    for (let i=0;i<n;i++){
+      const a0 = dashed ? i/n*Math.PI*2 : 0, len = dashed ? Math.PI*2/n*.6 : Math.PI*2;
+      const m = new THREE.Mesh(new THREE.RingGeometry(r-.08, r+.08, dashed ? 8 : 160, 1, a0, len), mat(.8));
+      m.rotation.x = -Math.PI/2; m.position.set(0, .03, cz); g.add(m);
+    }
+  };
+  const arrow = (g, x, z, ang) => {          // petite flèche au sol, ang = cap (même convention que le cheval)
+    const sh = new THREE.Shape(); sh.moveTo(0,-.55); sh.lineTo(.38,.25); sh.lineTo(0,.05); sh.lineTo(-.38,.25); sh.lineTo(0,-.55);
+    const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), mat(.85)); m.rotation.set(-Math.PI/2, 0, ang + Math.PI); m.position.set(x, .032, z); g.add(m);
+  };
+  const strip = (g, x, z, w, l, ang=0) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), mat(.8)); m.rotation.set(-Math.PI/2, 0, ang); m.position.set(x, .03, z); g.add(m); };
+  // cercles à gauche du cheval (côté +z quand il fait face au juge), puis à droite
+  for (const [tag, sg] of [['circL', 1], ['circR', -1]]){
+    const g = part(tag);
+    ring(g, sg*CIRC.small, CIRC.small, true);    // petit cercle lent, en pointillés
+    ring(g, sg*CIRC.big, CIRC.big, false);       // grand cercle rapide
+    for (const [r, k] of [[CIRC.small, .25], [CIRC.big, .25], [CIRC.big, .6]]){
+      const a = k*Math.PI*2, cx = sg*r;           // angle autour du centre du cercle, sens du galop
+      const px = -Math.sin(a)*r, pz = sg*(r - Math.cos(a)*r);
+      arrow(g, px, pz, Math.PI/2 + sg*a);
+    }
+  }
+  // centre : spins et arrêts
+  const c = part('center'); ring(c, 0, 1.1, false); strip(c, 0, 0, .14, 1.6); strip(c, 0, 0, 1.6, .14);
+  // descentes : grand tour du fond côté juge (−z) sans refermer le cercle, puis les deux grands côtés vers le fond +z
+  const rd = part('rund'), LX = 12, ZT = -20, ZS = L - 6;
+  { const m = new THREE.Mesh(new THREE.RingGeometry(LX-.08, LX+.08, 96, 1, 0, Math.PI), mat(.8)); m.rotation.x = -Math.PI/2; m.position.set(0, .03, ZT); rd.add(m); }
+  for (const sx of [-1, 1]){
+    strip(rd, sx*LX, (ZT + ZS - 2)/2, .16, ZS - 2 - ZT);
+    arrow(rd, sx*LX, -8, 0); arrow(rd, sx*LX, 10, Math.PI); arrow(rd, sx*LX, 20, Math.PI);   // on remonte vers le fond −z, on descend vers +z
+    for (let k=0;k<7;k++){ const a = k/6*Math.PI; const r = 1.6; strip(rd, sx*(LX + r - Math.cos(a)*r), ZS - 2 + Math.sin(a)*r*.9, .32, .14); }   // rollback, vers le mur
+    strip(rd, sx*LX, 0, 3, .14);                                  // à hauteur du marqueur bleu du centre
+  }
+  strip(rd, 0, ZS, 2*W - 4, .1);                                    // ne pas s'arrêter au-delà : 6 m du mur
+}
+function updatePatternGround(){
+  if (!patternGround) return;
+  patternGround.visible = mode==='pattern';
+  if (mode!=='pattern') return;
+  const m = MANEUVERS[P.idx], id = m ? m.id : '';
+  const on = tag => tag==='center' ? true : tag==='rund' ? /rund|final/.test(id) : tag===id;
+  for (const g of patternGround.children){ const k = on(g.userData.tag) ? 1 : .28; g.traverse(o => { if (o.material) o.material.opacity = (o.material.userData.base ??= o.material.opacity) * k; }); }
+}
+// Banderoles sur le pare-bottes (après chargement des polices)
+function makeSign(){
+  const banner = (txt, bg, fg, font) => canvasTex(1024,256,(x,w,h)=>{ x.fillStyle=bg;x.fillRect(0,0,w,h); x.strokeStyle=fg;x.lineWidth=8;x.strokeRect(12,12,w-24,h-24); x.fillStyle=fg;x.textAlign='center';x.textBaseline='middle';x.font=font;x.fillText(txt,w/2,h/2+4); });
+  const B = [
+    banner('CJ HORSES', '#3D1C02', '#F5ECD7', '120px Rye, Georgia, serif'),
+    banner('FRANCE WESTERN', '#f2efe8', '#2b3a55', '700 120px "Barlow Condensed", Arial, sans-serif'),
+    banner('CLUB DES BERNARDS', '#1f2a3a', '#C8A96E', '700 108px "Barlow Condensed", Arial, sans-serif'),
+    banner('PETIT FAR WEST', '#f2efe8', '#3D1C02', '96px Rye, Georgia, serif'),
+    banner('FROGGY', '#2f5130', '#f2efe8', '700 150px "Barlow Condensed", Arial, sans-serif'),
+  ];
+  const fx = W+0.35, fz = L+0.35; let k = 0;
+  const put = (x, z, ry) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(3.4, .85), new THREE.MeshLambertMaterial({map:B[k++ % B.length]})); m.position.set(x, .72, z); m.rotation.y = ry; scene.add(m); };
+  for (let z=-fz+6; z<fz-4; z+=9){ put(-fx+.08, z, Math.PI/2); put(fx-.08, z+4.5, -Math.PI/2); }
+  for (const x of [-11, 0, 11]){ put(x, -fz+.08, 0); put(x, fz-.08, Math.PI); }
+  // grand panneau au-dessus du portail du fond
+  const big = new THREE.Mesh(new THREE.PlaneGeometry(8, 2), new THREE.MeshLambertMaterial({map:B[0]}));
+  big.position.set(0, 3.6, -(fz+4.05)); scene.add(big);
+}
+// Décor : écurie, arbres, collines
+{
+  const barn = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(26,6,11), new THREE.MeshLambertMaterial({color:'#7a2e1d'}));
+  body.position.y = 3; barn.add(body);
+  const roofGeo = new THREE.CylinderGeometry(7.2,7.2,26.6,3,1);
+  const roof = new THREE.Mesh(roofGeo, new THREE.MeshLambertMaterial({color:'#4a4440'}));
+  roof.rotation.z = Math.PI/2; roof.rotation.x = Math.PI/2; roof.position.y = 6+1.6; roof.scale.set(1,1,.45); barn.add(roof);
+  for (let i=0;i<6;i++){ const d=new THREE.Mesh(new THREE.BoxGeometry(2.4,3.2,.1), new THREE.MeshLambertMaterial({color:'#efe6d6'})); d.position.set(-10.5+i*4.2,1.7,5.56); barn.add(d); }
+  barn.position.set(-34, 0, -10); barn.rotation.y = Math.PI/2; scene.add(barn);
+  const r = rng(21), trunkGeo = new THREE.CylinderGeometry(.25,.35,3,6), leafGeo = new THREE.ConeGeometry(2.6,7,7);
+  const N=90, trunks=new THREE.InstancedMesh(trunkGeo,new THREE.MeshLambertMaterial({color:'#5a4330'}),N), leaves=new THREE.InstancedMesh(leafGeo,new THREE.MeshLambertMaterial({color:'#4f6a3a'}),N);
+  const m4=new THREE.Matrix4(), q=new THREE.Quaternion(), s=new THREE.Vector3(), p=new THREE.Vector3();
+  for(let i=0;i<N;i++){ let x,z; do{ x=(r()-.5)*360; z=(r()-.5)*360; }while(Math.abs(x)<44 && Math.abs(z)<62);
+    const k=.7+r()*.9; s.set(k,k,k);
+    p.set(x,1.5*k,z); m4.compose(p,q,s); trunks.setMatrixAt(i,m4);
+    p.set(x,(3+3.4)*k,z); m4.compose(p,q,s); leaves.setMatrixAt(i,m4); }
+  scene.add(trunks, leaves);
+  const hillMat = new THREE.MeshLambertMaterial({color:'#8f9a72'});
+  for (let i=0;i<9;i++){ const a=i/9*Math.PI*2+.3, d=260+r()*40; const h=new THREE.Mesh(new THREE.SphereGeometry(60+r()*40,16,8),hillMat); h.scale.y=.22+r()*.12; h.position.set(Math.cos(a)*d,-4,Math.sin(a)*d); scene.add(h); }
+}
+
+/* ---------- Cheval vu de la selle ---------- */
+const rig = new THREE.Group(); scene.add(rig);            // origine = postérieurs (pivot des spins)
+const body = new THREE.Group(); rig.add(body);            // balancement des allures
+body.add(camera);
+camera.position.set(0, 2.33, -1.0);
+camera.rotation.order = 'YXZ';
+const neckPivot = new THREE.Group(); neckPivot.position.set(0, 1.6, -1.62); body.add(neckPivot);
+let horseParts = null;
+
+function coatTexture(c, name){
+  return canvasTex(512,256,(x,w,h)=>{
+    const r = rng(hashStr(name));
+    x.fillStyle = c.base; x.fillRect(0,0,w,h);
+    if (c.type==='pie'){ x.fillStyle=c.patch; for(let i=0;i<7;i++){ x.beginPath(); const cx=r()*w, cy=r()*h, rr=30+r()*70; for(let a=0;a<Math.PI*2;a+=.35){const k=rr*(.7+r()*.5);x.lineTo(cx+Math.cos(a)*k,cy+Math.sin(a)*k*.8)} x.fill(); } }
+    if (c.type==='leopard'){ x.fillStyle=c.patch; for(let i=0;i<120;i++){ x.beginPath(); x.ellipse(r()*w,r()*h,3+r()*6,3+r()*5,r()*3,0,Math.PI*2); x.fill(); } }
+    for(let i=0;i<4000;i++){ x.fillStyle=`rgba(0,0,0,${r()*.06})`; x.fillRect(r()*w,r()*h,1,3); }
+  });
+}
+function cyl(rTop, rBot, len, mat, from, dir, flat=.62){
+  const g = new THREE.CylinderGeometry(rTop, rBot, len, 18, 1, false); g.scale(flat,1,1);
+  const m = new THREE.Mesh(g, mat);
+  const d = dir.clone().normalize();
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), d);
+  m.position.copy(from).addScaledVector(d, len/2);
+  return m;
+}
+function buildHorse(h){
+  while (neckPivot.children.length) neckPivot.remove(neckPivot.children[0]);
+  const coat = h.coat;
+  const skin = new THREE.MeshStandardMaterial({map:coatTexture(coat, h.name), roughness:.75, metalness:0});
+  const maneMat = new THREE.MeshStandardMaterial({color:coat.mane, roughness:.9});
+  const leather = new THREE.MeshStandardMaterial({color:'#4a2410', roughness:.6});
+  // Encolure (repère local du pivot = garrot)
+  const neckDir = new THREE.Vector3(0, .5, -.86);
+  const neck = cyl(.2, .35, 1.14, skin, new THREE.Vector3(0,-.04,.02), neckDir, .8);
+  const crest = cyl(.14, .22, 1.0, skin, new THREE.Vector3(0,.1,.04), neckDir, .85);
+  neckPivot.add(crest);
+  neckPivot.add(neck);
+  const poll = new THREE.Vector3(0,0,0).addScaledVector(neckDir.clone().normalize(), 1.08);
+  const headPivot = new THREE.Group(); headPivot.position.copy(poll); neckPivot.add(headPivot);
+  const headDir = new THREE.Vector3(0,-.78,-.62);
+  const head = cyl(.085, .155, .64, skin, new THREE.Vector3(0,.02,-.02), headDir, .72);
+  headPivot.add(head);
+  // Bande blanche de chanfrein pour les pies
+  if (coat.type==='pie'){ const bl = cyl(.03,.05,.6,new THREE.MeshStandardMaterial({color:'#f4efe6',roughness:.8}),new THREE.Vector3(0,.06,-.05),headDir,.9); bl.position.y+=.02; bl.position.z-=.03; headPivot.add(bl); }
+  // Oreilles
+  const earGeo = new THREE.ConeGeometry(.055,.23,8); earGeo.translate(0,.115,0); earGeo.scale(.7,1,1);
+  const earL = new THREE.Mesh(earGeo, skin), earR = new THREE.Mesh(earGeo, skin);
+  earL.position.set(.075,.08,.02); earR.position.set(-.075,.08,.02);
+  earL.rotation.set(-.25,0,.3); earR.rotation.set(-.25,0,-.3);
+  headPivot.add(earL, earR);
+  // Toupet
+  const fore = new THREE.Mesh(new THREE.BoxGeometry(.09,.04,.16), maneMat); fore.position.set(0,.08,-.08); fore.rotation.x=.5; headPivot.add(fore);
+  // Crinière : mèches sur le bord supérieur, tombant à droite
+  const mane = [];
+  const strandGeo = new THREE.BoxGeometry(.016,.2,.03); strandGeo.translate(0,-.1,0);
+  const rr = rng(hashStr(h.name+'m'));
+  const nUp = new THREE.Vector3(0,.86,.5);
+  for (let i=0;i<54;i++){
+    const t = i/53, p = new THREE.Vector3(0,0,0).addScaledVector(neckDir.clone().normalize(), .04 + t*1.02);
+    const rad = lerp(.3,.2,t) + .02, a = .55 + rr()*.25;          // point de départ sur le flanc gauche de la crête
+    p.addScaledVector(nUp, .08 + Math.cos(a)*rad); p.x -= Math.sin(a)*rad*.85;
+    const s = new THREE.Mesh(strandGeo, maneMat);
+    s.position.copy(p); s.rotation.set(0, 0, -.5 - rr()*.25); s.scale.y = .6 + rr()*.8;
+    neckPivot.add(s); mane.push(s);
+  }
+  // Mors, rênes, main du cavalier, pommeau
+  const bitPos = new THREE.Vector3(0,0,0).addScaledVector(headDir.clone().normalize(), .52).add(new THREE.Vector3(0,.02,-.02));
+  const hand = new THREE.Mesh(new THREE.SphereGeometry(.04,12,8), new THREE.MeshStandardMaterial({color:'#3a2414',roughness:.85}));
+  hand.scale.set(1.3,.75,1.1); hand.position.set(.03, .37, -.04);
+  neckPivot.add(hand);
+  const reinMat = new THREE.MeshStandardMaterial({color:'#2b1608', roughness:.7});
+  for (const sx of [-1,1]){
+    const start = hand.position.clone();
+    const end = bitPos.clone().add(poll).add(new THREE.Vector3(sx*.11,0,0));
+    const mid = start.clone().lerp(end,.5); mid.y -= .26; mid.x += sx*.18;
+    const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+    neckPivot.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 16, .009, 5), reinMat));
+  }
+  const horn = new THREE.Mesh(new THREE.CylinderGeometry(.025,.04,.1,10), leather); horn.position.set(0,.2,.14); neckPivot.add(horn);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(.06,.05,.025,14), leather); cap.position.set(0,.26,.14); neckPivot.add(cap);
+  const swell = new THREE.Mesh(new THREE.SphereGeometry(.3,16,8), leather); swell.scale.set(1.1,.35,.5); swell.position.set(0,.18,.22); neckPivot.add(swell);
+  horseParts = {headPivot, earL, earR, mane};
+}
+
+/* ---------- Poussière et traces ---------- */
+const DUST_N = 420;
+const dust = { pos:new Float32Array(DUST_N*3), vel:new Float32Array(DUST_N*3), life:new Float32Array(DUST_N), next:0 };
+const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute('position', new THREE.BufferAttribute(dust.pos,3));
+const dustTex = canvasTex(64,64,(x,w,h)=>{const g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(222,196,150,.9)');g.addColorStop(1,'rgba(222,196,150,0)');x.fillStyle=g;x.fillRect(0,0,w,h)});
+const dustPts = new THREE.Points(dustGeo, new THREE.PointsMaterial({size:.9, map:dustTex, transparent:true, depthWrite:false, opacity:.55}));
+dustPts.frustumCulled = false; scene.add(dustPts);
+for (let i=0;i<DUST_N;i++) dust.pos[i*3+1] = -50;
+function puff(x, z, n, power){
+  for (let k=0;k<n;k++){
+    const i = dust.next = (dust.next+1)%DUST_N;
+    dust.pos[i*3]=x+(Math.random()-.5)*.6; dust.pos[i*3+1]=.15; dust.pos[i*3+2]=z+(Math.random()-.5)*.6;
+    dust.vel[i*3]=(Math.random()-.5)*power; dust.vel[i*3+1]=.4+Math.random()*power*.6; dust.vel[i*3+2]=(Math.random()-.5)*power;
+    dust.life[i]=1.2+Math.random();
+  }
+}
+function updateDust(dt){
+  for (let i=0;i<DUST_N;i++){
+    if (dust.life[i]<=0) continue;
+    dust.life[i]-=dt;
+    dust.pos[i*3]+=dust.vel[i*3]*dt; dust.pos[i*3+1]+=dust.vel[i*3+1]*dt; dust.pos[i*3+2]+=dust.vel[i*3+2]*dt;
+    dust.vel[i*3+1]-=.3*dt;
+    if (dust.life[i]<=0) dust.pos[i*3+1]=-50;
+  }
+  dustGeo.attributes.position.needsUpdate = true;
+}
+const MARK_N = 900;
+const marks = new THREE.InstancedMesh(new THREE.PlaneGeometry(.13,.32), new THREE.MeshLambertMaterial({color:'#8d6c45', transparent:true, opacity:.75, depthWrite:false}), MARK_N);
+marks.frustumCulled = false; let markNext = 0;
+{ const m4=new THREE.Matrix4().makeTranslation(0,-10,0); for(let i=0;i<MARK_N;i++) marks.setMatrixAt(i,m4); }
+scene.add(marks);
+const _q = new THREE.Quaternion(), _e = new THREE.Euler(), _s = new THREE.Vector3(1,1,1), _p = new THREE.Vector3(), _m = new THREE.Matrix4();
+function addMark(x, z, yaw){
+  _q.setFromEuler(_e.set(-Math.PI/2, yaw, 0, 'YXZ'));
+  _p.set(x, .04, z); _m.compose(_p, _q, _s); marks.setMatrixAt(markNext, _m); markNext = (markNext+1)%MARK_N;
+  marks.instanceMatrix.needsUpdate = true;
+}
+function clearMarks(){ const m4=new THREE.Matrix4().makeTranslation(0,-10,0); for(let i=0;i<MARK_N;i++) marks.setMatrixAt(i,m4); marks.instanceMatrix.needsUpdate=true; }
+
+/* =========================================================
+   Cheval 3D : « HORSE - Realistic 3D Model (DEMO FREE) » de WildMesh 3D (CC BY-NC 4.0),
+   recoloré à la robe de chaque cheval
+   ========================================================= */
+let model = null, mixer = null, curAction = null, bodyMesh = null;
+const ACTIONS = {}, BONES = {}, REST = {}, AXES = {}, DRIVEN = [];
+let sideSwap = false;
+const NOISE_GLSL = `
+float hash3(vec3 p){ p = fract(p*0.3183099 + .1); p *= 17.0; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+float vnoise(vec3 x){ vec3 i = floor(x); vec3 f = fract(x); f = f*f*(3.0-2.0*f);
+  return mix(mix(mix(hash3(i+vec3(0.,0.,0.)), hash3(i+vec3(1.,0.,0.)), f.x), mix(hash3(i+vec3(0.,1.,0.)), hash3(i+vec3(1.,1.,0.)), f.x), f.y),
+             mix(mix(hash3(i+vec3(0.,0.,1.)), hash3(i+vec3(1.,0.,1.)), f.x), mix(hash3(i+vec3(0.,1.,1.)), hash3(i+vec3(1.,1.,1.)), f.x), f.y), f.z); }
+float fbm(vec3 p){ return .58*vnoise(p) + .28*vnoise(p*2.13) + .14*vnoise(p*4.37); }
+`;
+const coatU = {
+  uA:{value:new THREE.Color()}, uB:{value:new THREE.Color()}, uMane:{value:new THREE.Color()}, uWhite:{value:new THREE.Color(.86,.84,.8)},
+  uType:{value:0}, uPieT:{value:.5}, uSeed:{value:0}, uSheen:{value:0}, uRef:{value:.6}, uMeter:{value:1},
+  uHx:{value:new THREE.Vector4()}, uHy:{value:new THREE.Vector4()}, uHz:{value:new THREE.Vector4()},
+  uPointsH:{value:0}, uSocks:{value:new THREE.Vector4()}, uFace:{value:0}, uFaceW:{value:.03}, uHeadCol:{value:0},
+  uForehead:{value:new THREE.Vector3(0,2,-2)}, uPieZone:{value:0}, uPieF:{value:1}, uBn:{value:0}, uFaceOff:{value:0}, uPinkOn:{value:0}, uBl:{value:Array.from({length:16},()=>new THREE.Vector4())}, uBr:{value:Array.from({length:16},()=>new THREE.Vector3(1,1,1))}, uNose:{value:new THREE.Vector3(0,1.5,-2.3)}
+};
+const hairMats = [];
+const eyeU = { uBlue:{value:0} };
+const hairU = { uManeC:{value:new THREE.Color()}, uTailC:{value:new THREE.Color()}, uPollC:{value:new THREE.Color()}, uTipC:{value:new THREE.Color()}, uTipH:{value:-1} };
+function setupHair(m){
+  m.roughness = .7; m.color.setRGB(1,1,1);
+  m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, hairU);
+    sh.vertexShader = 'attribute vec3 aW;\nvarying vec3 vHW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vHW = aW;');
+    sh.fragmentShader = 'varying vec3 vHW;\nuniform vec3 uManeC; uniform vec3 uTailC; uniform vec3 uPollC; uniform vec3 uTipC; uniform float uTipH;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+  float l = clamp(dot(diffuseColor.rgb, vec3(.333))*1.45, 0.0, 1.4);
+  vec3 c = vHW.z > -.45 ? uTailC : (vHW.y > 1.93 ? uPollC : uManeC);
+  if (vHW.z > -.45 && vHW.y < uTipH) c = uTipC;
+  diffuseColor.rgb = c*l;`);
+  };
+  m.needsUpdate = true;
+}
+function setupEye(m){
+  m.roughness = .08;
+  m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, eyeU);
+    sh.vertexShader = 'attribute float aSide;\nvarying float vSide;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vSide = aSide;');
+    sh.fragmentShader = 'varying float vSide;\nuniform float uBlue;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+  float l = dot(diffuseColor.rgb, vec3(.333));
+  if (uBlue > 1.5 || (uBlue != 0.0 && vSide*uBlue > 0.0)) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.42,.62,.82)*(.35 + l*2.2), .85);
+  else diffuseColor.rgb = vec3(.13,.06,.025)*(.2 + l*2.0);`);
+  };
+  m.needsUpdate = true;
+}
+function setupCoat(m){
+  m.roughness = .55; m.metalness = 0;
+  m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, coatU);
+    sh.vertexShader = 'attribute vec3 aW;\nvarying vec3 vOP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vOP = aW;');
+    sh.fragmentShader = `varying vec3 vOP;
+uniform vec3 uA; uniform vec3 uB; uniform vec3 uMane; uniform vec3 uWhite; uniform float uType; uniform float uPieT; uniform float uSeed;
+uniform float uSheen; uniform float uRef; uniform vec4 uHx; uniform vec4 uHy; uniform vec4 uHz;
+uniform float uPointsH; uniform vec4 uSocks; uniform float uFace; uniform float uFaceW; uniform float uHeadCol; uniform vec3 uForehead; uniform vec3 uNose; uniform float uPieZone; uniform float uPieF; uniform float uBn; uniform float uFaceOff; uniform vec4 uBl[16]; uniform vec3 uBr[16]; uniform float uPinkOn;
+` + NOISE_GLSL + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+  float lum = dot(diffuseColor.rgb, vec3(.299,.587,.114));
+  float shade = clamp(pow(lum/uRef, 1.15), 0.0, 1.7);
+  // position dans le repère « cheval debout » : x droite, y hauteur, z vers l'arrière (m)
+  vec3 W = vOP;
+  vec3 base = uA;
+  if (uType > .5 && uType < 1.5){ float n = fbm(W*vec3(1.7,1.4,1.2)*uPieF + uSeed); float zone = uPieZone > .5 ? smoothstep(.72,.82,W.y)*smoothstep(1.75,1.62,W.y)*smoothstep(-1.62,-1.45,W.z) : 1.0; base = mix(uA, uB, smoothstep(uPieT, uPieT + .03, n)*zone); }
+  if (uType > 1.5 && uType < 2.5){ float n = vnoise(W*13.0 + uSeed); base = mix(uA, uB, step(.79, n)); }
+  if (uType > 2.5){ float mk = 0.0;
+    for (int i=0;i<16;i++){ if (float(i) >= uBn) break; if (uBl[i].w > .5) continue; vec3 q = (W - uBl[i].xyz)/uBr[i]; float e = dot(q,q) + (fbm(W*5.0 + uSeed + float(i)*3.1) - .5)*.55; mk = max(mk, smoothstep(1.03, .97, e)); }
+    base = mix(uA, uB, mk); }
+  bool headZone = W.y > 1.25 && W.z < -1.55;
+  if (uHeadCol > .5 && headZone && (uHeadCol < 1.5 || W.x > -.015 || W.y > 2.0)) base = uB;
+  bool legZone = W.y < .62;
+  if (uPointsH > 0.0 && legZone) base = mix(base, uMane, smoothstep(uPointsH, uPointsH - .08, W.y));
+  // balzanes : quel membre ?
+  bool hind = W.z > -.6; bool right = W.x > 0.0;
+  float sock = hind ? (right ? uSocks.w : uSocks.z) : (right ? uSocks.y : uSocks.x);
+  float edge = (vnoise(W*vec3(25.0,6.0,25.0)) - .5)*.05;
+  bool white = sock > 0.0 && legZone && W.y < sock + edge;
+  // tête : 1 étoile, 2 liste, 3 belle face
+  if (uFace > .5 && W.y > 1.0 && W.z < -1.5){
+    vec3 d = W - uForehead; d.x -= uFaceOff;
+    if (uFace < 1.5){ white = white || (abs(d.x)/uFaceW + abs(d.y)/(uFaceW*1.3) < 1.0 && abs(d.z) < .09); }
+    else {
+      vec3 ab = uNose - uForehead; vec2 p = vec2(d.y, d.z), q = ab.yz; float t = clamp(dot(p,q)/dot(q,q), -.15, 1.0);
+      float dist = length(p - q*t); float w = uFaceW*(1.0 - .35*t);
+      white = white || (dist < .085 && abs(d.x) < w + edge*.6);
+    }
+  }
+  if (white) base = uWhite;
+  if (uPinkOn > .5 && distance(W, uNose) < .13 && W.y < uNose.y + .02) base = mix(base, vec3(.62,.33,.3), smoothstep(.13,.08, distance(W, uNose)));
+  if (uType > 2.5){ for (int i=0;i<16;i++){ if (float(i) >= uBn) break; if (uBl[i].w < .5) continue; vec3 q = (W - uBl[i].xyz)/uBr[i]; if (dot(q,q) + (vnoise(W*40.0 + float(i)) - .5)*.4 < 1.0) base = uB; } }
+  vec3 col = base*shade + uSheen*base*shade*shade;
+  float dark = smoothstep(.16,.05, lum);
+  col = mix(col, diffuseColor.rgb*.55, dark);
+  diffuseColor.rgb = col;`);
+  };
+  m.needsUpdate = true;
+}
+const lin = hex => new THREE.Color(hex).convertSRGBToLinear();
+function applyCoat(h){
+  const c = h.coat;
+  coatU.uType.value = c.blobs ? 3 : c.type==='pie' ? 1 : c.type==='leopard' ? 2 : 0;
+  coatU.uBn.value = c.blobs ? c.blobs.length : 0;
+  (c.blobs || []).forEach((b,i) => { coatU.uBl.value[i].set(b[0], b[1], b[2], b[6] || 0); coatU.uBr.value[i].set(b[3], b[4], b[5]); });
+  coatU.uA.value.copy(lin(c.base)); coatU.uB.value.copy(lin(c.patch || c.base)); coatU.uMane.value.copy(lin(c.mane));
+  coatU.uPieT.value = c.pieT ?? .5; coatU.uPieZone.value = c.pieZone ? 1 : 0; coatU.uPieF.value = c.pieF || 1; coatU.uHeadCol.value = c.headPatch==='right' ? 2 : c.headPatch ? 1 : 0;
+  coatU.uPointsH.value = c.points || 0;
+  const s = c.socks || {}; coatU.uSocks.value.set(s.lf||0, s.rf||0, s.lh||0, s.rh||0);
+  coatU.uFaceOff.value = c.faceOff || 0; eyeU.uBlue.value = c.blueEye==='both' ? 2 : c.blueEye==='L' ? -1 : c.blueEye==='R' ? 1 : 0; coatU.uPinkOn.value = c.pink ? 1 : 0;
+  coatU.uFace.value = c.face==='star' ? 1 : c.face==='blaze' ? 2 : 0; coatU.uFaceW.value = c.faceW || (c.face==='blaze' ? .045 : .022);
+  coatU.uSeed.value = (hashStr(h.name) % 97) * .37; coatU.uSheen.value = c.sheen || 0;
+  const mc = lin(c.hair || c.mane);
+  hairU.uManeC.value.copy(mc); hairU.uTailC.value.copy(c.tail ? lin(c.tail) : mc); hairU.uPollC.value.copy(c.poll ? lin(c.poll) : mc);
+  hairU.uTipC.value.copy(c.tailTip ? lin(c.tailTip) : (c.tail ? lin(c.tail) : mc)); hairU.uTipH.value = c.tailTip ? .85 : -1;
+}
+const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _v = new THREE.Vector3(), _v2 = new THREE.Vector3();
+const boneKey = n => n.replace(/_\d+$/, '').toLowerCase();
+function bonePos(k, target){ const b = BONES[k]; return b ? b.getWorldPosition(target) : null; }
+function setupModel(g){
+  model = g.scene;
+  const seen = new Set();
+  model.traverse(o => {
+    if (o.isBone){ BONES[boneKey(o.name)] = o; FILE_REST[boneKey(o.name)] = [o.position.clone(), o.quaternion.clone()]; }
+    if (o.isMesh){
+      o.frustumCulled = false;
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => {
+        if (seen.has(m)) return; seen.add(m);
+        if (/Body/i.test(m.name)){ setupCoat(m); bodyMesh = o; }
+        else if (/Hair/i.test(m.name)){ setupHair(m); hairMats.push(m); }
+        else if (/Eye/i.test(m.name)){ setupEye(m); }
+        else { m.roughness = .7; }
+      });
+    }
+  });
+  body.add(model);
+  // Animations d'origine (repos et pas) : on garde le balancement de la racine mais pas son avancée
+  mixer = new THREE.AnimationMixer(model);
+  for (const clip of g.animations){
+    clip.tracks = clip.tracks.filter(tr => !/\.scale$/.test(tr.name) && !/^(_rootjoint|root_\d+)\./i.test(tr.name));
+    for (const tr of clip.tracks){
+      if (/(_rootjoint|root_\d+|pelvis_\d+)\.position$/i.test(tr.name)){
+        const v = tr.values, n = tr.times.length;
+        for (let c=0;c<3;c++){ const a0 = v[c], a1 = v[(n-1)*3+c]; for (let i=0;i<n;i++) v[i*3+c] -= (a1-a0)*i/Math.max(1,n-1); }
+      }
+      const k = boneKey(tr.name.split('.')[0]); if (!DRIVEN.includes(k)) DRIVEN.push(k);
+    }
+    const key = /walk/i.test(clip.name) ? 'walk' : /idle/i.test(clip.name) ? 'idle' : clip.name;
+    ACTIONS[key] = mixer.clipAction(clip);
+  }
+  if (ACTIONS.idle){ ACTIONS.idle.play(); curAction = ACTIONS.idle; mixer.update(0); }
+  // Orientation : tête vers -Z, postérieurs à l'origine
+  model.updateMatrixWorld(true);
+  const P = k => bonePos(k, new THREE.Vector3());
+  let head = P('head'), pel = P('pelvis');
+  model.rotation.y = Math.atan2(head.x - pel.x, head.z - pel.z) + Math.PI;
+  model.updateMatrixWorld(true);
+  head = P('head'); pel = P('pelvis');
+  if (head.z > pel.z){ model.rotation.y += Math.PI; model.updateMatrixWorld(true); }
+  const feet = () => ['toes_02_l','toes_02_r','fingers_02_l','fingers_02_r'].map(P).filter(Boolean);
+  let f = feet(), low = Math.min(...f.map(v=>v.y));
+  const scale = 1.95 / (P('head').y - low);                 // nuque à ~1,95 m au repos
+  model.scale.multiplyScalar(scale); model.updateMatrixWorld(true);
+  f = feet(); low = Math.min(...f.map(v=>v.y));
+  const hl = P('toes_02_l'), hr = P('toes_02_r');
+  model.position.x -= (hl.x+hr.x)/2; model.position.z -= (hl.z+hr.z)/2; model.position.y -= low - .045;
+  model.updateMatrixWorld(true);
+  sideSwap = (bonePos('upperarm_l', _v).x > 0);                   // gauche du cheval = -X
+  // Repos et axes de rotation de chaque os, exprimés dans le repère du modèle
+  const qModel = new THREE.Quaternion(); body.getWorldQuaternion(qModel); qModel.invert();
+  for (const [k, b] of Object.entries(BONES)){
+    REST[k] = { q:b.quaternion.clone(), p:b.position.clone() };
+    b.getWorldQuaternion(_qa); _qa.premultiply(qModel).invert();
+    AXES[k] = { x:new THREE.Vector3(1,0,0).applyQuaternion(_qa).normalize(), y:new THREE.Vector3(0,1,0).applyQuaternion(_qa).normalize(), z:new THREE.Vector3(0,0,1).applyQuaternion(_qa).normalize() };
+  }
+  // Correspondance maillage -> cheval debout (régression linéaire sur les sommets déformés), front et bout du nez
+  try{
+    const skinPos = (mesh, i, out) => { out.fromBufferAttribute(mesh.geometry.attributes.position, i); mesh.boneTransform(i, out); return mesh.localToWorld(out); };
+    const bp = bodyMesh.geometry.attributes.position, tmp = new THREE.Vector3(), N = [];
+    const M = Array.from({length:4}, () => new Float64Array(4)), R = [new Float64Array(4), new Float64Array(4), new Float64Array(4)];
+    for (let i=0;i<bp.count;i+=9){
+      skinPos(bodyMesh, i, tmp); const g = [bp.getX(i), bp.getY(i), bp.getZ(i), 1], w = [tmp.x, tmp.y, tmp.z];
+      for (let a=0;a<4;a++){ for (let b=0;b<4;b++) M[a][b] += g[a]*g[b]; for (let c=0;c<3;c++) R[c][a] += g[a]*w[c]; }
+    }
+    const solve = (A, y) => { const n=4, m = A.map((r,i)=>[...r, y[i]]);
+      for (let c=0;c<n;c++){ let p=c; for (let r=c+1;r<n;r++) if (Math.abs(m[r][c])>Math.abs(m[p][c])) p=r; [m[c],m[p]]=[m[p],m[c]];
+        for (let r=0;r<n;r++) if (r!==c){ const f=m[r][c]/m[c][c]; for (let k=c;k<=n;k++) m[r][k]-=f*m[c][k]; } }
+      return m.map((r,i)=>r[n]/r[i]); };
+    const hx = solve(M, R[0]), hy = solve(M, R[1]), hz = solve(M, R[2]);
+    const aw = new Float32Array(bp.count*3);
+    for (let i=0;i<bp.count;i++){ skinPos(bodyMesh, i, tmp); aw[i*3]=tmp.x; aw[i*3+1]=tmp.y; aw[i*3+2]=tmp.z; }
+    bodyMesh.geometry.setAttribute('aW', new THREE.BufferAttribute(aw, 3));
+    model.traverse(o => { if (o.isMesh && /Hair/i.test(o.material.name)){ const hp = o.geometry.attributes.position, hw = new Float32Array(hp.count*3);
+      for (let i=0;i<hp.count;i++){ skinPos(o, i, tmp); hw[i*3]=tmp.x; hw[i*3+1]=tmp.y; hw[i*3+2]=tmp.z; } o.geometry.setAttribute('aW', new THREE.BufferAttribute(hw, 3)); } });
+    coatU.uHx.value.set(...hx); coatU.uHy.value.set(...hy); coatU.uHz.value.set(...hz);
+    let eyeMesh = null; model.traverse(o => { if (o.isMesh && /Eye/i.test(o.material.name)) eyeMesh = o; });
+    const eye = new THREE.Vector3(); let n = 0; const ep = eyeMesh.geometry.attributes.position;
+    for (let i=0;i<ep.count;i+=5){ eye.add(skinPos(eyeMesh, i, tmp)); n++; }
+    const side = new Float32Array(ep.count);
+    for (let i=0;i<ep.count;i++) side[i] = Math.sign(skinPos(eyeMesh, i, tmp).x) || 1;
+    eyeMesh.geometry.setAttribute('aSide', new THREE.BufferAttribute(side, 1));
+    eye.divideScalar(n);
+    const target = eye.clone().add(new THREE.Vector3(0, .1, -.06));
+    let best = 1e9, fore = new THREE.Vector3(), nose = new THREE.Vector3(0, 0, 9);
+    for (let i=0;i<bp.count;i++){
+      skinPos(bodyMesh, i, tmp);
+      const d = tmp.distanceToSquared(target); if (d < best){ best = d; fore.copy(tmp); }
+      if (Math.abs(tmp.x) < .05 && tmp.y > 1.0 && tmp.z < nose.z) nose.copy(tmp);
+    }
+    nose.y += .1; nose.z += .04;                                   // un peu au-dessus des naseaux
+    coatU.uForehead.value.copy(fore); coatU.uNose.value.copy(nose);
+    window.__face = {fore:fore.toArray(), nose:nose.toArray(), hy};
+  }catch(e){ console.warn(e); }
+  // Caméra de la vue selle au point de montée du cavalier
+  const mp = bonePos('mountpoint_01', new THREE.Vector3()) || bonePos('saddle', new THREE.Vector3());
+  camera.position.set(0, 2.3, -.74); CAM_Y = 2.3; camStab.y = 2.3;
+  fpPitch = -.24;
+  neckPivot.visible = false;
+  applyCoat(H);
+  try{ setupPack(); }catch(e){ console.warn('pack', e); }
+}
+function loadModel(){
+  if (!THREE.GLTFLoader || !window.HORSE_GLB) return;
+  const fail = err => console.warn('Modèle 3D indisponible', err);
+  try{
+    const bin = atob(window.HORSE_GLB), buf = new Uint8Array(bin.length);
+    for (let i=0;i<bin.length;i++) buf[i] = bin.charCodeAt(i);
+    new THREE.GLTFLoader().parse(buf.buffer, '', setupModel, fail);
+  }catch(e){ fail(e); }
+}
+function pose(k, ax, ay=0, az=0){
+  const b = BONES[k]; if (!b) return;
+  const A = AXES[k];
+  b.quaternion.copy(REST[k].q);
+  if (ax) b.quaternion.multiply(_qb.setFromAxisAngle(A.x, ax));
+  if (ay) b.quaternion.multiply(_qb.setFromAxisAngle(A.y, ay));
+  if (az) b.quaternion.multiply(_qb.setFromAxisAngle(A.z, az));
+}
+function resetDriven(){ for (const k of (PACK.ready ? PACK.allKeys : DRIVEN)){ const b = BONES[k]; if (b){ b.quaternion.copy(REST[k].q); b.position.copy(REST[k].p); } } }
+const GAIT_LEGS = {
+  1:{duty:.62, A:.26, flex:1.0, off:{lf:.25, rf:.75, lh:0, rh:.5}},
+  2:{duty:.5,  A:.2,  flex:.62, fA:1.5, hA:1.6, fFlex:.8, hFlex:.9, reach:true, off:{lf:.5, rf:0, lh:0, rh:.5}},
+  3:{duty:.48, A:.34, flex:.85, fA:1.7, hA:1.7, fFlex:1.0, hFlex:1.05, reach:true, off:{lf:.5, rf:0, lh:0, rh:.5}},
+  4:{duty:.42, A:.42, flex:1.15},
+  5:{duty:.24, A:.56, flex:1.3, fA:1.55, hA:1.3, fFlex:1.25, hFlex:1.35, reach:true, off4:true},
+};
+function legCycle(p, duty, A, reach){
+  p = ((p % 1) + 1) % 1;
+  if (p < duty){ const k = p/duty; return [A*(1-2*k), 0]; }
+  const k = (p-duty)/(1-duty);
+  if (reach){ // trot : pli maximal en début de foulée, puis le membre se tend vers l'avant avant de se poser
+    const kk = Math.min(1, k/.78), fwd = kk*kk*(3-2*kk);
+    return [-A + 2*A*fwd, Math.pow(Math.sin(Math.PI*Math.min(1, k/.82)), 1.4)];
+  }
+  return [-A + 2*A*(k*k*(3-2*k)), Math.sin(Math.PI*k)];
+}
+const sideKey = s => (sideSwap ? (s==='l' ? 'r' : 'l') : s);
+const LEGBIAS = {fl:0, fr:0, hl:0, hr:0};
+function frontLeg(side, ang, flex, abd=0){
+  const s = sideKey(side); ang += LEGBIAS['f'+side];
+  pose('clavicle_'+s, ang*.3);
+  pose('upperarm_'+s, ang*.25, 0, abd);
+  pose('lowerarm_'+s, ang*.15 + flex*.45);
+  pose('hand_'+s, -flex*1.45);
+  pose('fingers_01_'+s, -flex*.6 + (flex ? 0 : -ang*.2));
+}
+function hindLeg(side, ang, flex, crouch=0){
+  const s = sideKey(side); ang += LEGBIAS['h'+side];
+  pose('upperleg_'+s, ang*.6 + crouch*.65);
+  pose('lowerleg_'+s, ang*.1 - flex*.65 - crouch*.55);
+  pose('foot_'+s, flex*1.15 + crouch*.45);
+  pose('toes_01_'+s, -flex*.45 + crouch*.35);
+}
+// Le modèle a l'antérieur gauche posé plus en avant au repos : on égalise les deux côtés une fois pour toutes
+let legCalib = false;
+function calibrateLegs(){
+  legCalib = true;
+  const tip = (k) => { model.updateMatrixWorld(true); return BONES[k].getWorldPosition(new THREE.Vector3()).z; };
+  const solve = (fn, tipL, tipR, kL, kR) => {
+    for (let it=0; it<8; it++){
+      fn('l', 0, 0); fn('r', 0, 0);
+      const d = tip(tipL) - tip(tipR);                                  // z vers l'arrière : d<0 = gauche en avant
+      if (Math.abs(d) < .004) break;
+      LEGBIAS[kL] += d*.18; LEGBIAS[kR] -= d*.18;
+    }
+  };
+  solve(frontLeg, 'fingers_02_'+sideKey('l'), 'fingers_02_'+sideKey('r'), 'fl', 'fr');
+  solve(hindLeg, 'toes_02_'+sideKey('l'), 'toes_02_'+sideKey('r'), 'hl', 'hr');
+  resetDriven();
+}
+let SLIDE_CROUCH = .75, LB = 1.22, SPIN_X = -.42, spinPh = 0, ARCH = .12, LOW_K = -1, BACK_K = .07, HEAD_K = -.22;
+function playClip(name, scale){
+  const a = ACTIONS[name]; if (!a) return false;
+  if (curAction !== a){ if (curAction) curAction.fadeOut(.25); a.reset().fadeIn(.25).play(); curAction = a; }
+  a.timeScale = scale;
+  return true;
+}
+function stopClips(){ if (curAction){ curAction.stop(); curAction = null; } }
+function animateHorse(dt, t, neck){
+  if (!model) return;
+  if (!legCalib) calibrateLegs();
+  if (packAnimate(dt, neck)) return;
+  const walking = S.mode==='ride' && S.gait===1 && S.v > .15;
+  const still = S.mode==='ride' && S.gait===0 && Math.abs(S.v) < .12;
+  if ((walking && playClip('walk', clamp(S.v/1.5, .4, 1.4))) || (still && playClip('idle', 1))){
+    mixer.update(dt);
+    if (walking){ const bend = S.steer*.1; for (const k of ['neck_02','neck_03','neck_04']){ const b = BONES[k]; if (b) b.quaternion.multiply(_qb.setFromAxisAngle(AXES[k].y, bend)); } }
+    return;
+  }
+  stopClips(); resetDriven();
+  const ph = S.phase;
+  let lf=[0,0], rf=[0,0], lh=[0,0], rh=[0,0], crouch = 0, abdL = 0, abdR = 0;
+  if (S.mode==='ride' && S.gait>0 && Math.abs(S.v) > .15){
+    const G = GAIT_LEGS[S.gait], sf = clamp(Math.abs(S.v)/Math.max(.1, GAIT_SPEED[S.gait]*H.speedMul), .35, 1.2);
+    let off = G.off;
+    if (!off) off = G.off4 ? (S.lead==='R' ? {lh:0, rh:.09, lf:.27, rf:.45} : {rh:0, lh:.09, rf:.27, lf:.45})
+                   : (S.lead==='R' ? {lh:0, rh:.3, lf:.3, rf:.46} : {rh:0, lh:.3, rf:.3, lf:.46});
+    const A = G.A*sf;
+    const fA = A*(G.fA||1), hA = A*(G.hA||1);
+    // au galop, le bipède du côté du pied (antérieur et postérieur directeurs) se projette plus loin
+    const lead = S.gait>=4 ? (S.lead==='R' ? 'R' : 'L') : null;
+    const fL = fA*(lead==='L' ? LB : 1), fR = fA*(lead==='R' ? LB : 1), hL = hA*(lead==='L' ? 1.1 : 1), hR = hA*(lead==='R' ? 1.1 : 1);
+    lf = legCycle(ph - off.lf, G.duty, fL, G.reach); rf = legCycle(ph - off.rf, G.duty, fR, G.reach);
+    lh = legCycle(ph - off.lh, G.duty, hL, G.reach); rh = legCycle(ph - off.rh, G.duty, hR, G.reach);
+    [lf, rf].forEach(l => l[1] *= (G.fFlex ?? G.flex)); [lh, rh].forEach(l => l[1] *= (G.hFlex ?? G.flex));
+  } else if (S.mode==='ride' && S.v < -.1){
+    const p = -(S.backup*.9);
+    lf = legCycle(p+.5, .5, -.18); rf = legCycle(p, .5, -.18); lh = legCycle(p, .5, -.18); rh = legCycle(p+.5, .5, -.18);
+  } else if (S.mode==='spin'){
+    spinPh += S.spin.rate*2.4*dt;
+    // l'antérieur extérieur croise devant l'antérieur intérieur, qui s'ouvre vers le côté du spin
+    const dir = S.spin.dir, outL = dir < 0, w2 = Math.PI*2;
+    const pO = spinPh, pI = spinPh + .5;
+    const sideO = .5 - .5*Math.cos(w2*pO), sideI = .5 - .5*Math.cos(w2*pI);
+    const swO = legCycle(pO, .45, .1), swI = legCycle(pI, .45, .1);
+    const crossO = SPIN_X*dir*(.25 + .75*sideO), openI = SPIN_X*dir*.55*sideI;
+    if (outL){ lf = [swO[0] + .06*sideO, swO[1]*.8]; rf = swI; abdL = crossO; abdR = openI; }
+    else     { rf = [swO[0] + .06*sideO, swO[1]*.8]; lf = swI; abdR = crossO; abdL = openI; }
+    crouch = .18*Math.min(1, S.spin.rate);
+  } else if (S.mode==='slide'){
+    crouch = 1.0*Math.min(1, S.slide.t*4);
+    spinPh += dt*2.6*Math.max(.3, S.slide.v/8);
+    lf = legCycle(spinPh, .5, .32); rf = legCycle(spinPh+.5, .5, .32);
+  } else if (S.mode==='rollback'){
+    const k = Math.sin(Math.PI*S.roll.t/S.roll.dur);
+    crouch = .8*k; lf = [.55*k, .9*k]; rf = [.5*k, .85*k];
+  }
+  frontLeg('l', lf[0], lf[1], abdL); frontLeg('r', rf[0], rf[1], abdR);
+  hindLeg('l', lh[0], lh[1], crouch); hindLeg('r', rh[0], rh[1], crouch);
+  const bend = S.mode==='ride' ? S.steer*.1 : S.mode==='spin' ? S.spin.dir*.12 : S.mode==='rollback' ? S.roll.dir*.15 : 0;
+  const lift = S.mode==='slide' ? .1 : S.mode==='rollback' ? .12 : 0;
+  const arch = S.mode==='ride' && S.gait===4 ? ARCH : S.mode==='ride' && S.gait===5 ? -.26 : 0;   // encolure légèrement arrondie au galop
+  const low = (S.legsLow || 0) * LOW_K;
+  pose('neck_01', -.06 + neck*.35 + lift - arch*.6 + low*.42, bend*.6);
+  pose('neck_02', neck*.2 + arch*.3 + low*.14, bend);
+  pose('neck_03', neck*.1 + arch*.5 + low*.06, bend);
+  pose('head', .03 - neck*.3 + arch*.9 + low*HEAD_K, bend*.5);
+  pose('spine_02', low*BACK_K*.5); pose('spine_03', low*BACK_K);
+  const lope = S.mode==='ride' && S.gait>=4;
+  const sw = Math.sin(t*(lope ? 3.2 : 1.1))*(lope ? .08 : .05) + (S.mode==='spin' ? -S.spin.dir*.3 : 0);
+  pose('tail_01', lope ? .35 : .04, sw);
+  pose('tail_02', lope ? -.1 : 0, sw*1.3);
+  pose('tail_03', lope ? -.15 : 0, sw*1.5);
+  pose('tail_04', 0, sw*1.6);
+}
+
+// Ombre au sol
+{
+  const tex = canvasTex(128,128,(x,w,h)=>{const g=x.createRadialGradient(64,64,0,64,64,64);g.addColorStop(0,'rgba(40,25,10,.55)');g.addColorStop(1,'rgba(40,25,10,0)');x.fillStyle=g;x.fillRect(0,0,w,h)});
+  const sh = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 2.9), new THREE.MeshBasicMaterial({map:tex, transparent:true, depthWrite:false}));
+  sh.rotation.x = -Math.PI/2; sh.position.set(0, .05, -.85); rig.add(sh);
+}
+const tpPos = new THREE.Vector3(0, 3, 8), tpLook = new THREE.Vector3();
+const orbit = { yaw:0, pitch:0, active:0 };   // rotation de la caméra autour du cheval (souris ou doigt)
+function updateTpCam(dt, snap=false){
+  const [fx, fz] = fwd(S.yaw);
+  const cx = S.x + fx*.9, cz = S.z + fz*.9;
+  let ox = -fx*5.0 - fz*2.6, oz = -fz*5.0 + fx*2.6;
+  const co = Math.cos(orbit.yaw), so = Math.sin(orbit.yaw), cp = Math.cos(orbit.pitch);
+  [ox, oz] = [(ox*co + oz*so)*cp, (-ox*so + oz*co)*cp];
+  const want = _v.set(cx + ox, 2.1 + Math.sin(orbit.pitch)*5.6, cz + oz);
+  orbit.active = Math.max(0, orbit.active - dt);
+  if (snap) tpPos.copy(want); else tpPos.lerp(want, 1 - Math.exp(-dt*(orbit.active > 0 ? 14 : S.mode==='spin' ? 1.2 : 2.2)));
+  tpCam.position.copy(tpPos);
+  const lookWant = _v2.set(cx + fx*.8, 1.05, cz + fz*.8);            // regard lissé : pas d'à-coups dans les spins et rollbacks
+  if (snap) tpLook.copy(lookWant); else tpLook.lerp(lookWant, 1 - Math.exp(-dt*4));
+  tpCam.lookAt(tpLook);
+}
+function toggleView(){
+  view = view==='ext' ? 'selle' : 'ext'; store.set('cj-view', view);
+  $('#btnView').textContent = view==='ext' ? 'Vue selle' : 'Vue extérieure';
+  if (view==='ext') updateTpCam(0, true);
+}
+
+/* =========================================================
+   Animations du pack complet WildMesh 3D (Horse Animset), reportées sur le squelette du jeu
+   ========================================================= */
+const FILE_REST = {};
+const PACK = { ready:false, M:{}, C:{}, order:[], parentKey:{}, staticW:{}, cur:null, prev:null, blend:1, prevT:0, pelvisBind:null, pelvisRestB:null, s:1, bodyQinv:null };
+// le galop d'origine du pack est à droite : la version miroir sert pour le pied gauche
+const PACK_CLIP_FOR_GAIT = g => g===1 ? 'Pas' : (g===2 || g===3) ? 'Trot' : g===4 ? (S.lead==='R' ? 'Galop_G' : 'Galop_D') : g===5 ? (S.lead==='R' ? 'GrandGalop_G' : 'GrandGalop_D') : 'Repos';
+function setupPack(){
+  if (!window.PACK_ANIMS || !bodyMesh) return;
+  const P = window.PACK_ANIMS, sk = bodyMesh.skeleton;
+  // référence commune : la première image du repos d'origine, connue à la fois ici et dans Blender
+  model.updateMatrixWorld(true);
+  const bq = new THREE.Quaternion(); body.getWorldQuaternion(bq); PACK.bodyQinv = bq.clone().invert();
+  const bodyInv = new THREE.Matrix4().copy(body.matrixWorld).invert();
+  const bindW = {};
+  for (const [k,b] of Object.entries(BONES)){ const q = new THREE.Quaternion(); b.getWorldQuaternion(q); q.premultiply(PACK.bodyQinv); bindW[k] = { q, p:b.getWorldPosition(new THREE.Vector3()).applyMatrix4(bodyInv) }; }
+  const REF = P.idleRef;
+  const keys = Object.keys(P.rest).filter(k => BONES[k] && bindW[k] && REF.q[k]);
+  for (const k of keys) PACK.M[k] = bindW[k].q.clone().multiply(new THREE.Quaternion(...REF.q[k]).invert());
+  // ordre parents → enfants et parents statiques
+  const depth = b => { let d = 0; while (b.parent && b.parent.isBone){ d++; b = b.parent; } return d; };
+  PACK.order = keys.slice().sort((a,b) => depth(BONES[a]) - depth(BONES[b]));
+  const keySet = new Set(keys);
+  for (const k of keys){
+    const p = BONES[k].parent; const pk = p && p.isBone ? boneKey(p.name) : null;
+    PACK.parentKey[k] = keySet.has(pk) ? pk : null;
+    if (!PACK.parentKey[k]){ const q = new THREE.Quaternion(); p.getWorldQuaternion(q); q.premultiply(PACK.bodyQinv); PACK.staticW[k] = q; }
+  }
+  const pb = BONES['pelvis'];
+  PACK.pelvisBind = bindW['pelvis'].p.clone();
+  // correction globale : la pose « debout » du pack est recalée sur la pose debout de référence
+  const R0 = P.clips.Repos, rq0 = new THREE.Quaternion(R0.q.pelvis[0], R0.q.pelvis[1], R0.q.pelvis[2], R0.q.pelvis[3]);
+  PACK.K = new THREE.Quaternion(...REF.q.pelvis).multiply(rq0.invert());
+  PACK.pelvisRestB = new THREE.Vector3(R0.p[0], R0.p[1], R0.p[2]);
+  // correction par os : la première image du repos du pack doit retomber exactement sur la pose debout de référence
+  // (certains os, dont les omoplates et les os correcteurs, n'ont pas la même orientation de repos dans les deux fichiers)
+  PACK.C = {};
+  for (const k of keys){ const a = R0.q[k]; if (!a) continue;
+    const q0 = PACK.K.clone().multiply(new THREE.Quaternion(a[0], a[1], a[2], a[3]));
+    PACK.C[k] = q0.invert().multiply(new THREE.Quaternion(...REF.q[k])); }
+  const ws = new THREE.Vector3(); pb.parent.getWorldScale(ws); const bs = new THREE.Vector3(); body.getWorldScale(bs);
+  PACK.s = ws.x / bs.x;
+  PACK.Mp = PACK.M['pelvis'] ? PACK.M['pelvis'].clone().multiply(new THREE.Quaternion(...P.rest['pelvis'])).multiply(new THREE.Quaternion(...P.rest['pelvis']).invert()) : new THREE.Quaternion();
+  PACK.Mp = PACK.M['pelvis'].clone();
+  // dérive horizontale de chaque boucle (corps qui avance dans l'animation)
+  PACK.drift = {};
+  for (const [name, c] of Object.entries(P.clips)){
+    const n = c.frames, p0 = new THREE.Vector3(c.p[0], c.p[1], c.p[2]), p1 = new THREE.Vector3(c.p[(n-1)*3], c.p[(n-1)*3+1], c.p[(n-1)*3+2]);
+    PACK.drift[name] = p1.sub(p0).applyQuaternion(PACK.K).applyQuaternion(PACK.Mp).multiplyScalar(PACK.s);
+  }
+  // chaque boucle est recentrée horizontalement sur le cheval (seule la hauteur du bassin reste animée)
+  PACK.meanOff = {};
+  for (const name of Object.keys(P.clips)){ if (name === 'Repos' || name === 'Freinage' || name.startsWith('Arret')) continue; const m = new THREE.Vector3(); for (let i=0;i<12;i++){ m.add(packSample(name, i/12).p); } m.divideScalar(12).sub(PACK.pelvisBind); m.y = 0; PACK.meanOff[name] = m; }
+  PACK.allKeys = [...new Set([...DRIVEN, ...PACK.order])];
+  // profils d'avancée des animations d'arrêt : position et vitesse vers l'avant à chaque image (le jeu déplace le cheval au même rythme)
+  PACK.prof = {};
+  for (const [name, c] of Object.entries(P.clips)){ if (!name.startsWith('Arret')) continue;
+    const n = c.frames, z = [], v = [];
+    for (let i=0;i<n;i++) z.push(-new THREE.Vector3(c.p[i*3], c.p[i*3+1], c.p[i*3+2]).applyQuaternion(PACK.K).applyQuaternion(PACK.Mp).multiplyScalar(PACK.s).z);
+    for (let i=0;i<n;i++){ const a = Math.max(0, i-2), b = Math.min(n-1, i+2); v.push(Math.max(0, (z[b]-z[a])/(b-a)*P.fps)); }
+    let end = n-1; while (end > 4 && v[end] < .06) end--;
+    PACK.prof[name] = { z, v, end: Math.min(n-1, end + 10) };
+  }
+  PACK.ready = true;
+}
+const _pq = new THREE.Quaternion(), _pq2 = new THREE.Quaternion(), _pv = new THREE.Vector3();
+function packSample(name, u){        // u = position dans la boucle, 0..1 → poses monde (repère du corps)
+  const c = window.PACK_ANIMS.clips[name]; if (!c) return null;
+  const n = c.frames, loop = name !== 'Freinage' && !name.startsWith('Arret'), last = n-1;
+  const f = loop ? (((u % 1) + 1) % 1) * last : clamp(u, 0, 1) * last;
+  const i0 = Math.floor(f), i1 = Math.min(i0+1, n-1), a = f - i0;
+  const out = { q:{}, p:null };
+  for (const k of PACK.order){
+    const arr = c.q[k]; if (!arr) continue;
+    _pq.set(arr[i0*4], arr[i0*4+1], arr[i0*4+2], arr[i0*4+3]);
+    _pq2.set(arr[i1*4], arr[i1*4+1], arr[i1*4+2], arr[i1*4+3]);
+    const q = _pq.clone().slerp(_pq2, a);
+    out.q[k] = PACK.M[k].clone().multiply(PACK.K).multiply(q);
+    if (PACK.C[k]) out.q[k].multiply(PACK.C[k]);
+  }
+  // pivots : le cheval tourne déjà dans l'animation d'origine ; c'est le jeu qui fait tourner le cheval, donc on retire ce lacet
+  if (name.startsWith('Pivot') && out.q.pelvis){
+    const q0 = PACK.M.pelvis.clone().multiply(new THREE.Quaternion(...window.PACK_ANIMS.idleRef.q.pelvis));   // cap du cheval debout
+    const dq = out.q.pelvis.clone().multiply(q0.invert());
+    const tw = new THREE.Quaternion(0, dq.y, 0, dq.w).normalize().invert();   // composante de rotation autour de la verticale
+    for (const k of Object.keys(out.q)) out.q[k].premultiply(tw);
+    out.tw = tw;
+  }
+  const P = c.p; _pv.set(P[i0*3] + (P[i1*3]-P[i0*3])*a, P[i0*3+1] + (P[i1*3+1]-P[i0*3+1])*a, P[i0*3+2] + (P[i1*3+2]-P[i0*3+2])*a);
+  const d = _pv.clone().sub(PACK.pelvisRestB).applyQuaternion(PACK.K).applyQuaternion(PACK.Mp).multiplyScalar(PACK.s);
+  if (loop && PACK.drift[name]) d.addScaledVector(PACK.drift[name], -(f/last));
+  if (PACK.meanOff && PACK.meanOff[name]) d.sub(PACK.meanOff[name]);
+  if (out.tw){ d.x = 0; d.z = 0; }   // pivot : le bassin reste au-dessus du pied de pivot
+  if (!loop){ d.x = 0; d.z = 0; }   // le freinage avance dans l'animation : c'est le jeu qui déplace le cheval
+  out.p = PACK.pelvisBind.clone().add(d);
+  return out;
+}
+function packApply(pose){
+  const W = {};
+  for (const k of PACK.order){
+    const q = pose.q[k]; if (!q) continue;
+    W[k] = q;
+    const pk = PACK.parentKey[k], pw = pk ? W[pk] : PACK.staticW[k];
+    if (!pw) continue;
+    BONES[k].quaternion.copy(pw.clone().invert().multiply(q));
+  }
+  // position du bassin
+  const pb = BONES['pelvis'];
+  if (pb && pose.p){ pb.parent.updateMatrixWorld(true); const local = pose.p.clone().applyMatrix4(body.matrixWorld); pb.parent.worldToLocal(local); pb.position.copy(local); }
+}
+function packBlend(A, B, k){
+  if (!A) return B; const out = { q:{}, p:B.p.clone().lerp(A.p, 1-k) };
+  for (const key of Object.keys(B.q)) out.q[key] = A.q[key] ? A.q[key].clone().slerp(B.q[key], k) : B.q[key];
+  return out;
+}
+// renvoie true si le pack a animé le cheval
+// les sabots ne passent jamais sous le sol : on remonte le corps si le plus bas d'entre eux s'enfonce
+const HOOF_KEYS = ['fingers_02_l','fingers_02_r','toes_02_l','toes_02_r'];
+let hoofRef = null;
+function groundHooves(){
+  if (!model || !BONES[HOOF_KEYS[0]]) return;
+  const gy = rig.getWorldPosition(_v3g).y;
+  const low = () => { model.updateMatrixWorld(true); let m = 9; for (const k of HOOF_KEYS){ const b = BONES[k]; if (b) m = Math.min(m, b.getWorldPosition(_v3h).y); } return m - gy; };
+  if (hoofRef === null){   // hauteur de l'os du sabot quand le cheval est debout, posé au sol
+    const save = body.position.y, rx = body.rotation.x, rz = body.rotation.z;
+    body.position.y = 0; body.rotation.x = 0; body.rotation.z = 0;
+    if (PACK.ready){ packApply(packSample('Repos', 0)); }
+    hoofRef = low(); body.position.y = save; body.rotation.x = rx; body.rotation.z = rz;
+  }
+  const m = low(), tol = S.mode==='slide' ? .015 : .004;
+  if (m < hoofRef - tol){ body.position.y += hoofRef - tol - m; model.updateMatrixWorld(true); }
+}
+const _v3g = new THREE.Vector3(), _v3h = new THREE.Vector3();
+function packAnimate(dt, neck){
+  if (!PACK.ready) return false;
+  let name = null, u = 0;
+  if (S.mode==='ride' && S.gait>=1 && S.v > .15){ name = PACK_CLIP_FOR_GAIT(S.gait); u = S.phase; }
+  else if (S.mode==='ride' && S.halt && S.halt.f !== null){ name = S.halt.clip; u = S.halt.f / (window.PACK_ANIMS.clips[name].frames - 1); }
+  else if (S.mode==='ride' && S.gait===0 && Math.abs(S.v) < .12 && S.lastStop && S.sinceStop < 1.5){ name = 'Freinage'; u = (34 + 36*S.sinceStop/1.5)/116; }
+  else if (S.mode==='ride' && S.gait===0 && S.v >= .12){ name = 'Pas'; u = S.phase; }   // derniers pas, sans animation d'arrêt
+  else if (S.mode==='ride' && S.gait===0 && Math.abs(S.v) < .12){ name = 'Repos'; PACK.idleT = (PACK.idleT||0) + dt; u = PACK.idleT / 14; }
+  else if (S.mode==='slide'){ name = 'Freinage'; const k = clamp(1 - S.slide.v/Math.max(1, S.slide.v0), 0, 1); u = (6 + 28*Math.sqrt(k))/116; }
+  else if (S.mode==='ride' && S.v < -.1){ name = 'Pas'; PACK.backU = (PACK.backU||0) - dt*(-S.v)/1.9; u = PACK.backU; }
+  else if (S.mode==='spin'){ name = S.spin.dir > 0 ? 'Pivot_G' : 'Pivot_D'; PACK.spinU = (PACK.spinU||0) + dt*(.55 + 4.5*S.spin.rate); /* les pieds s'accélèrent avec la vitesse du spin */ u = PACK.spinU; }
+  if (!name){ PACK.cur = null; PACK.bob = 0; return false; }
+  stopClips(); resetDriven();
+  let pose = packSample(name, u);
+  if (PACK.cur && PACK.cur !== name){ PACK.from = PACK.last; PACK.blend = 0; }
+  PACK.cur = name;
+  if (PACK.blend < 1 && PACK.from){ PACK.blend = Math.min(1, PACK.blend + dt/.3); const k = PACK.blend*PACK.blend*(3-2*PACK.blend); pose = packBlend(PACK.from, pose, k); }
+  PACK.last = pose; PACK.bob = pose.p.y - PACK.pelvisBind.y;
+  model.updateMatrixWorld(true);
+  packApply(pose);
+  // retouches : pli vers la rêne, encolure basse aux jambes ou au reculer
+  const bend = S.mode==='ride' ? S.steer*.1 : S.mode==='spin' ? S.spin.dir*.1 : 0;
+  const low = (S.legsLow || 0) * LOW_K;
+  const add = (k, ax, ay) => { const b = BONES[k]; if (!b) return; if (ax) b.quaternion.multiply(_qb.setFromAxisAngle(AXES[k].x, ax)); if (ay) b.quaternion.multiply(_qb.setFromAxisAngle(AXES[k].y, ay)); };
+  add('neck_01', low*.42, bend*.6); add('neck_02', low*.14, bend); add('neck_03', low*.06, bend); add('head', low*HEAD_K, bend*.5);
+  if (low){ add('spine_02', low*BACK_K*.5, 0); add('spine_03', low*BACK_K, 0); }
+  // sliding stop : postérieurs bien engagés et arrière-main assise
+  if (S.mode==='slide'){ const c = SLIDE_CROUCH*Math.min(1, S.slide.t*5)*clamp(S.slide.v/3 + .4, .4, 1);
+    for (const sd of ['l','r']){ const k2 = sideKey(sd); add('upperleg_'+k2, c*.65, 0); add('lowerleg_'+k2, -c*.55, 0); add('foot_'+k2, c*.45, 0); add('toes_01_'+k2, c*.35, 0); }
+    // l'arrière-main descend jusqu'à ce que les postérieurs restent au sol
+    model.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(body.matrixWorld).invert(), hy = k => { const b = BONES[k]; return b ? b.getWorldPosition(new THREE.Vector3()).applyMatrix4(inv).y : 9; };
+    const hind = Math.min(hy('toes_02_l'), hy('toes_02_r')), front = Math.min(hy('fingers_02_l'), hy('fingers_02_r'));
+    const drop = clamp(hind - .06, 0, Math.max(0, front - .02) + .12);
+    if (drop > 0){ const pb = BONES['pelvis']; const w = pb.getWorldPosition(new THREE.Vector3()); w.y -= drop*body.getWorldScale(new THREE.Vector3()).y; pb.parent.worldToLocal(w); pb.position.copy(w); } }
+  return true;
+}
+
+/* =========================================================
+   Son (Web Audio, synthétisé)
+   ========================================================= */
+const Sound = {
+  ctx:null, on:true, master:null, noise:null, slideGain:null,
+  init(){
+    if (this.ctx) return;
+    try{
+      const C = window.AudioContext || window.webkitAudioContext; this.ctx = new C();
+      this.master = this.ctx.createGain(); this.master.gain.value = .55; this.master.connect(this.ctx.destination);
+      const len = this.ctx.sampleRate; const b = this.ctx.createBuffer(1, len, this.ctx.sampleRate); const d = b.getChannelData(0);
+      for (let i=0;i<len;i++) d[i] = Math.random()*2-1; this.noise = b;
+      const src = this.ctx.createBufferSource(); src.buffer = b; src.loop = true;
+      const bp = this.ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=900; bp.Q.value=.7;
+      this.slideGain = this.ctx.createGain(); this.slideGain.gain.value = 0;
+      src.connect(bp); bp.connect(this.slideGain); this.slideGain.connect(this.master); src.start();
+    }catch(e){ this.ctx = null; }
+  },
+  hoof(power){
+    if (!this.ctx || !this.on) return;
+    const t = this.ctx.currentTime;
+    const s = this.ctx.createBufferSource(); s.buffer = this.noise;
+    const f = this.ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value = 420 + power*500;
+    const g = this.ctx.createGain(); g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.35*power+.05,t+.006); g.gain.exponentialRampToValueAtTime(.0001,t+.09);
+    s.connect(f); f.connect(g); g.connect(this.master); s.start(t, Math.random()*.5, .12);
+    const o = this.ctx.createOscillator(); o.frequency.setValueAtTime(110,t); o.frequency.exponentialRampToValueAtTime(48,t+.08);
+    const og = this.ctx.createGain(); og.gain.setValueAtTime(.0001,t); og.gain.exponentialRampToValueAtTime(.25*power+.03,t+.005); og.gain.exponentialRampToValueAtTime(.0001,t+.1);
+    o.connect(og); og.connect(this.master); o.start(t); o.stop(t+.12);
+  },
+  slide(level){ if (this.slideGain) this.slideGain.gain.setTargetAtTime(this.on ? level*.5 : 0, this.ctx.currentTime, .05); }
+};
+
+/* =========================================================
+   Entrées
+   ========================================================= */
+const keys = new Set(), pressed = new Set();
+const KEYMAP = { ArrowUp:'up', KeyW:'up', ArrowDown:'down', KeyS:'down', ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right',
+  ShiftLeft:'legs', ShiftRight:'legs', Space:'whoa', KeyC:'change', KeyR:'reset', Escape:'menu', KeyV:'view' };
+window.addEventListener('keydown', e=>{
+  const k = KEYMAP[e.code]; if (!k || !playing) return;
+  e.preventDefault(); if (!keys.has(k)) pressed.add(k); keys.add(k);
+});
+window.addEventListener('keyup', e=>{ const k = KEYMAP[e.code]; if (k) keys.delete(k); });
+window.addEventListener('blur', ()=>keys.clear());
+document.querySelectorAll('#touch .tb').forEach(b=>{
+  const k = b.dataset.k;
+  const down = e=>{ e.preventDefault(); b.setPointerCapture?.(e.pointerId); if(!keys.has(k)) pressed.add(k); keys.add(k); b.classList.add('on'); Sound.init(); };
+  const up = e=>{ keys.delete(k); b.classList.remove('on'); };
+  b.addEventListener('pointerdown', down); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up);
+});
+const held = k => keys.has(k);
+const hit = k => pressed.has(k);
+
+/* =========================================================
+   Messages
+   ========================================================= */
+const lastMsg = {};
+function toast(text, kind='', key=null, cool=3){
+  const now = performance.now()/1000;
+  if (key){ if (lastMsg[key] && now-lastMsg[key] < cool) return; lastMsg[key] = now; }
+  const box = $('#toasts'); const t = document.createElement('div'); t.className = 'toast '+kind; t.textContent = text;
+  box.appendChild(t); while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(()=>t.remove(), 3200);
+}
+
+/* =========================================================
+   État du cheval et physique
+   ========================================================= */
+let H = HORSES[selected];
+const S = {};
+function resetState(){
+  Object.assign(S, {
+    x:0, z:0, yaw:0, v:0, gait:0, mode:'ride', lead:null, disunited:false, fixT:0,
+    steer:0, steerHeld:0, legsHeld:0, needT:0, straightT:0, surge:0, sessionT:0,
+    spin:null, slide:null, roll:null, sinceStop:99, lastStop:null,
+    backup:0, backupT:0, stillT:0, driftT:0, driftDir:0,
+    phase:0, lastBeat:0, anim:{freq:0,y:0,pitch:0,roll:0,neck:0},
+    trail:[], halt:null, collapseK:0, collapseDir:0, fenceT:0, anticipT:0, autoRollDone:false, outLeadNote:0
+  });
+  clearMarks();
+}
+const dirInput = () => (held('left')?1:0) - (held('right')?1:0);
+const fwd = (yaw) => [-Math.sin(yaw), -Math.cos(yaw)];
+const sideName = d => d>0 ? 'gauche' : 'droite';
+
+function setGait(g, why){
+  const prev = S.gait;
+  g = clamp(g,0,5);
+  if (g===prev) return;
+  S.gait = g;
+  // transition vers l'arrêt : le cheval finit ses foulées avec l'animation d'arrêt du pack (pas → arrêt, galop → arrêt)
+  S.halt = null;
+  if (g===0 && prev>=1 && S.mode==='ride' && S.v > .35 && PACK.ready){
+    const clip = prev>=4 ? (S.lead==='R' ? 'ArretGalop_D' : 'ArretGalop_G') : 'ArretPas';
+    if (PACK.prof && PACK.prof[clip]) S.halt = { clip, f:null, r:[1,1.15,1.5,1.8,1.2,1.3][prev] };
+  }
+  if (g>=4 && prev<4) lopeDepart();
+  if (g<4){ if (S.lead) { S.lead=null; S.disunited=false; } }
+}
+function lopeDepart(){
+  const d = dirInput();
+  let lead;
+  if (d) lead = d>0 ? 'L' : 'R';
+  else if (Math.abs(S.steer)>.15) lead = S.steer>0 ? 'L':'R';
+  else lead = Math.random()<.5 ? 'L':'R';
+  // un cheval qui a un défaut sur un pied part parfois sur l'autre
+  if (H.hardLead && lead===H.hardLead && Math.random() < (held('legs') ? .3 : .65)){ lead = lead==='L' ? 'R' : 'L'; toast(`${H.name} part à faux : galop à ${lead==='L' ? 'gauche' : 'droite'} au lieu de ${lead==='L' ? 'droite' : 'gauche'}`, 'warn'); }
+  else if (H.dis[lead] > .12 && !held('legs') && Math.random()<.35){ lead = lead==='L'?'R':'L'; toast(`${H.name} part sur le mauvais pied`, 'warn'); }
+  S.lead = lead; S.disunited = false;
+  emit('lopeDepart', {lead});
+}
+function leadChange(){
+  if (S.gait<4 || S.mode!=='ride') return;
+  const target = S.lead==='L' ? 'R' : 'L';
+  let p = .45 + .55*H.st.change;
+  if (held('legs')) p += .08;
+  if (S.disunited) p = .8;
+  if (H.hardLead && target===H.hardLead) p = held('legs') ? .45 : .2;   // Grease vers la gauche, Swift vers la droite : le changement passe mal
+  const ok = Math.random() < p;
+  S.lead = target;
+  if (ok){ S.disunited = false; toast(`Changement de pied, ${target==='L'?'à gauche':'à droite'}`, 'good'); }
+  else { S.disunited = true; S.fixT = 0; toast(`Changement incomplet, ${H.name} est désuni`, 'warn'); }
+  emit('leadChange', {lead:target, clean:ok});
+}
+
+function update(dt){
+  S.sessionT += dt;
+  const d = dirInput();
+  if (hit('reset')) { pressed.clear(); restart(); return; }
+  if (hit('menu')) { pressed.clear(); openMenu(); return; }
+  if (hit('view')) toggleView();
+  if (held('legs')) { S.legsHeld += dt; S.needT = 0; } else S.legsHeld = 0;
+
+  if (S.mode === 'spin') updateSpin(dt, d);
+  else if (S.mode === 'slide') updateSlide(dt, d);
+  else if (S.mode === 'rollback') updateRollback(dt);
+  else updateRide(dt, d);
+
+  // limites de la carrière
+  const lim = 1.0, nx = clamp(S.x, -W+lim, W-lim), nz = clamp(S.z, -L+lim, L-lim);
+  const [fx, fz] = fwd(S.yaw);
+  const hx = S.x + fx*2.4, hz = S.z + fz*2.4;
+  const headOut = Math.abs(hx) > W-.4 || Math.abs(hz) > L-.4;
+  if (nx!==S.x || nz!==S.z || (headOut && S.v>0.5)){
+    S.x = nx; S.z = nz;
+    if (headOut && S.v > .5 && S.mode!=='spin' && S.mode!=='rollback'){
+      S.v *= .35; if (S.mode==='slide'){ S.slide.v = S.v; } else setGait(Math.min(S.gait,1));
+      toast('Hooo, la lice !', 'warn', 'fence', 2);
+    }
+  }
+  // trace pour le plan
+  if (!S.trail.length || Math.hypot(S.trail[S.trail.length-1][0]-S.x, S.trail[S.trail.length-1][1]-S.z) > .5){
+    S.trail.push([S.x,S.z]); if (S.trail.length > (mode==='pattern' ? 20000 : 900)) S.trail.shift();   // en pattern noté : tout le tracé, du début à la fin
+  }
+  // immobilité (hésitation)
+  const idle = S.mode==='ride' && S.gait===0 && Math.abs(S.v)<.05 && !d && !held('down') && !held('up');
+  S.stillT = idle ? S.stillT+dt : 0;
+  S.sinceStop += dt;
+  pressed.clear();
+}
+
+function updateRide(dt, d){
+  const st = H.st;
+  // --- À l'arrêt : spin, rollback, reculer
+  if (S.halt){
+    const h = S.halt, pr = PACK.prof[h.clip], n = pr.z.length;
+    if (h.f === null){   // on entre dans l'animation là où sa vitesse correspond à celle du cheval
+      h.f = 0; const want = S.v / h.r;
+      while (h.f < pr.end && pr.v[h.f] > want) h.f++;
+      h.f = Math.max(0, h.f - 2);
+    }
+    if (hit('up')){ S.halt = null; setGait(1); }
+    else {
+      h.f = Math.min(n - 1.001, h.f + dt*24*h.r);
+      const i = Math.floor(h.f), a = h.f - i;
+      const vc = Math.max(0, (pr.v[i]*(1-a) + pr.v[Math.min(i+1, n-1)]*a) * h.r);
+      S.v = Math.max(vc, S.v - 5*dt);   // pas de cassure brutale de vitesse en entrant dans l'animation
+      S.steer = lerp(S.steer, 0, 1-Math.exp(-dt*6));
+      moveForward(dt);
+      if (h.f >= pr.end){ S.halt = null; S.v = 0; }
+      return;
+    }
+  }
+  const halted = S.gait===0 && S.v < .35;
+  if (halted){
+    const legs = held('legs');
+    const recentStop = S.sinceStop < 3;
+    // dans les 3 secondes qui suivent un sliding stop : ← rollback à gauche, → rollback à droite
+    const rollWindow = recentStop && !!S.lastStop && (mode!=='pattern' || /rund/.test((MANEUVERS[P.idx]||{}).id||''));
+    if (rollWindow && (hit('left') || hit('right'))){ startRollback(hit('left') && !hit('right') ? 1 : hit('right') && !hit('left') ? -1 : (d || 1)); return; }
+    if (d && hit('up') && recentStop){ startRollback(d); return; }
+    if (d && !rollWindow){ S.spinArm = (S.spinArm||0) + dt; if (S.spinArm > .2){ startSpin(d); return; } }
+    else S.spinArm = 0;
+    if (hit('down') && !d && S.sessionT - (S.backRel ?? -9) < .7) S.backFast = true;   // rappuyer sur ↓ en reculant : reculer vite
+    if (held('down') && !d){
+      let bv = S.backFast ? -(1.5 + .6*st.sens) : -(.5 + .3*st.sens);
+      if (H.backHard){   // Bambi recule mal : il traîne, se bloque par moments, un peu moins avec des jambes
+        bv *= held('legs') ? .55 : .35;
+        S.backBlock = (S.backBlock||0) - dt;
+        if (S.backBlock < -2.2 + (held('legs') ? -1.5 : 0)){ S.backBlock = .7; toast(`${H.name} se bloque au reculer : relâchez et redemandez`, 'warn', 'back', 3); }
+        if (S.backBlock > 0) bv = 0;
+      }
+      S.backRel = S.sessionT;
+      S.v = lerp(S.v, bv, 1-Math.exp(-dt*4));
+      S.backup += -S.v*dt; S.backupT += dt;
+    } else {
+      if (S.backup>0 && !held('down')) { emit('backupEnd', {dist:S.backup, t:S.backupT}); S.backup = 0; S.backupT = 0; }
+      S.v = lerp(S.v, 0, 1-Math.exp(-dt*6));
+      if (S.sessionT - (S.backRel ?? -9) > .7) S.backFast = false;
+    }
+    if (hit('up') && !d) setGait(1);
+    // Cameron : rollback tout seul si on traîne après un stop
+    if (H.anticipate && S.sinceStop > .75 && S.lastStop && !S.autoRollDone && !d && !held('down')){
+      S.autoRollDone = true;
+      if (Math.random() < .6){
+        const side = Math.random()<.5 ? 1 : -1;
+        toast(`Cameron anticipe et rollback tout seul, à ${sideName(side)}`, 'warn');
+        startRollback(side, true); return;
+      }
+    }
+    moveForward(dt);
+    return;
+  }
+  S.spinArm = 0;
+
+  // --- Changements d'allure
+  // départ au galop depuis le pas : Maj enfoncé + double appui sur ↑
+  if (hit('up') && held('legs') && S.upFromWalk != null && S.sessionT - S.upFromWalk < .5 && S.gait===2){
+    S.upFromWalk = null; setGait(4); toast(`Départ au galop depuis le pas, pied ${S.lead==='L' ? 'gauche' : 'droit'}`, 'good', 'walklope', 2);
+  }
+  else if (hit('up')){
+    const fromWalk = S.gait===1 && held('legs');
+    if (H.spurs && !held('legs') && Math.random()<.6){ toast('Cameron ne bouge pas : éperons !', 'warn', 'spurs', 2); }
+    else if (H.quick && S.gait<3 && Math.random()<.35){ setGait(S.gait+2); toast('GF part au quart de tour', 'warn', 'quick', 3); }
+    else setGait(S.gait + 1);
+    S.upFromWalk = fromWalk && S.gait===2 ? S.sessionT : null;
+  }
+  if (hit('down')){
+    S.lastDown = S.sessionT;
+    if (S.surge > 0){ S.surge = Math.max(0, S.surge-1); if (!S.surge){ toast('Doc revient dans la main', 'good'); setGait(4); } }
+    else if (H.hardDown && S.gait>=2 && Math.random()<.4) toast(`${H.name} a du mal à redescendre`, 'warn', 'hard', 2);
+    else setGait(S.gait===5 ? 4 : S.gait===4 ? 2 : S.gait===3 ? 2 : S.gait-1);
+  }
+  if (hit('whoa')){
+    if (S.gait>=4 && S.v > 5.6) { startSlide(); return; }
+    setGait(0); S.lastStop = null;
+  }
+  if (hit('change')) leadChange();
+
+  // --- Direction (rênes progressives)
+  const sensRate = 4.2 + 3.5*st.sens;
+  S.steer = lerp(S.steer, d, 1-Math.exp(-dt*sensRate));
+  S.steerHeld = d ? S.steerHeld + dt : 0;
+  let turnMul = .75 + .5*st.sens;
+  if (H.sensitive && S.steerHeld > 1.2 && S.gait>=2){ turnMul *= 1.3; S.yaw += Math.sin(S.sessionT*9)*.6*dt; toast('Big Mac surréagit : main plus légère', 'warn', 'bigmac', 4); }
+  if (H.heavy && S.steerHeld > 2 && S.gait>=4){ turnMul *= .55; toast('Doc se raidit : ne le portez pas', 'warn', 'heavy', 4); }
+  let targetV = GAIT_SPEED[S.gait] * H.speedMul * (.9 + .2*st.speed);
+  if (H.straightFast){   // Cameron : lent dans les courbes, il se lâche dès que la ligne est droite
+    S.straightT = Math.abs(S.steer) < .12 && S.gait>=2 ? (S.straightT||0) + dt : 0;
+    targetV *= 1 + .28*Math.min(1, (S.straightT||0)/1.5);
+  }
+  // Shérif « mange » son cercle : sans jambes, il s'écroule vers l'intérieur et tourne plus serré que la trajectoire voulue
+  if (H.collapse){
+    const falling = Math.abs(S.steer)>.3 && S.gait>=2 && !held('legs');
+    if (falling){ S.collapseDir = Math.sign(S.steer); S.collapseK = Math.min(1, (S.collapseK||0) + dt/1.4); }
+    else S.collapseK = Math.max(0, (S.collapseK||0) - dt*(held('legs') ? 1.6 : .5));   // les jambes le redressent vite, sinon il reste écroulé un moment
+    const K = S.collapseK||0;
+    if (K > 0 && S.gait>=2){
+      if (Math.sign(S.steer) === S.collapseDir && Math.abs(S.steer) > .1) turnMul *= 1 + .9*K;
+      else S.yaw += S.collapseDir * .45 * K * dt;    // rênes relâchées : il continue de tomber dedans
+      targetV *= 1 - .12*K;
+      if (K > .35) toast(`${H.name} mange son cercle : il s'écroule à l'intérieur, jambes (Maj) !`, 'warn', 'collapse', 4);
+    }
+  }
+  const yawRate = S.steer * TURN_RATE[S.gait] * turnMul;
+  S.yaw += yawRate * dt;
+  S.lastYawRate = yawRate;
+
+  // dérives
+  if (H.drift && !held('legs') && S.gait>=1){ S.yaw += Math.sin(S.sessionT*.7)*.09*dt; }
+  if (S.driftT > 0){ S.driftT -= dt; if (!d) S.yaw += S.driftDir*.22*dt; if (S.driftT<=0) {} }
+
+  // impulsion : chevaux à mettre en avant
+  if (H.need && S.gait>=2 && !held('legs')){
+    S.needT += dt;
+    if (S.needT > H.need){ S.needT = 0; setGait(S.gait===4 ? 2 : S.gait-1); toast(`${H.name} s'éteint : il faut des jambes`, 'warn'); }
+  }
+  // Doc s'embale en ligne droite
+  if (H.runs && S.gait===4 && Math.abs(S.steer)<.12){ S.straightT += dt; if (S.straightT>2 && Math.random()<dt*.35){ S.surge = 2; S.gait = 5; S.straightT = 0; toast("Doc s'embale ! Demi-arrêts (↓)", 'warn'); } }
+  else S.straightT = 0;
+  if (S.surge) targetV *= 1.08;
+  // GF file en fence to fence
+  if (H.fenceRun && S.gait===5 && (S.sessionT - (S.lastDown||0)) > 3){ targetV *= 1.12; toast('GF file vers la lice, reprenez-le', 'warn', 'fencerun', 5); }
+
+  // désunion
+  if (S.gait>=4 && S.lead){
+    if (!S.disunited){
+      let rate = H.dis[S.lead] * (held('legs') ? .18 : 1) * (Math.abs(S.steer)>.3 ? 1.6 : 1);
+      if (H.early && S.sessionT < 70) rate *= 2.6;
+      if (Math.random() < rate*dt){ S.disunited = true; S.fixT = 0; toast(`${H.name} se désunit au galop`, 'warn'); }
+    } else {
+      targetV *= .86;
+      if (held('legs')){ S.fixT += dt; if (S.fixT > 1.3){ S.disunited = false; toast('Galop refait, uni', 'good'); } }
+    }
+  }
+  // accélération
+  const accUp = 2.2 + 2.4*st.sens, accDown = 3.4 + 1.6*st.sens*(H.hardDown?.5:1);
+  const a = targetV > S.v ? accUp : accDown;
+  S.v += clamp(targetV - S.v, -a*dt, a*dt);
+  moveForward(dt);
+  if (S.gait>=4 && Math.random()<dt*S.v*.25){ const [fx,fz]=fwd(S.yaw); puff(S.x - fx*.3, S.z - fz*.3, 1, .6); }
+}
+function moveForward(dt){ const [fx,fz] = fwd(S.yaw); S.x += fx*S.v*dt; S.z += fz*S.v*dt; }
+
+function startSpin(d){
+  S.mode = 'spin'; S.halt = null;
+  S.spin = { dir:d, rate:0, total:0, t:0, cx:S.x, cz:S.z, maxDrift:0, peak:0 };
+  S.v = 0;
+}
+function updateSpin(dt, d){
+  const sp = S.spin, st = H.st;
+  const max = .45*(.9 + 1.0*st.spin);                 // vitesse max réduite de 55 % : ~0,8 tour/s pour les meilleurs
+  let decel = .6*(2.5 + 3*st.spin); if (H.anticipate) decel *= .5;
+  const driving = d === sp.dir;
+  if (driving) sp.rate = Math.min(max, sp.rate + (.12 + .75*sp.rate)*dt);   // accélération exponentielle tant qu'on reste appuyé
+  else sp.rate = Math.max(0, sp.rate - (d ? decel*1.8 : decel)*dt);
+  sp.peak = Math.max(sp.peak, sp.rate);
+  const dYaw = sp.rate * Math.PI*2 * dt;
+  S.yaw += sp.dir * dYaw; sp.total += dYaw; if (sp.rate>0) sp.t += dt;
+  // pivot qui bouge sur les chevaux moins précis
+  const sloppy = (1-st.spin);
+  S.x += Math.cos(S.sessionT*5.3)*sloppy*.55*dt*sp.rate; S.z += Math.sin(S.sessionT*4.1)*sloppy*.55*dt*sp.rate;
+  sp.maxDrift = Math.max(sp.maxDrift, Math.hypot(S.x-sp.cx, S.z-sp.cz));
+  if (Math.random() < dt*sp.rate*6){ puff(S.x, S.z, 1, .8); }
+  if (sp.rate>.2 && Math.random()<dt*sp.rate*3){ const [fx,fz]=fwd(S.yaw); addMark(S.x+fx*1.25, S.z+fz*1.25, S.yaw+Math.PI/2); }
+  if (!driving && sp.rate <= 0){
+    S.mode = 'ride'; S.gait = 0;
+    const revs = sp.total/(Math.PI*2);
+    if (revs > .4){
+      emit('spinEnd', { dir:sp.dir, revs, avg: revs/Math.max(sp.t,.01), peak:sp.peak, drift:sp.maxDrift });
+      if (H.driftAfter){ S.driftT = 2; S.driftDir = sp.dir; }
+    }
+    S.spin = null;
+  }
+}
+function startSlide(){
+  const st = H.st;
+  let decel = (2/.6)*(6.4 - 3*st.stop); if (H.hardDown) decel += 4;   // glissade courte (÷2 puis −40 %)
+  S.mode = 'slide'; S.halt = null;
+  S.slide = { v0:S.v, v:S.v, dist:0, yaw0:S.yaw, decel, maxDev:0, x0:S.x, z0:S.z, t:0, mark:0 };
+  setGait(0);
+  Sound.slide(.9);
+}
+function updateSlide(dt, d){
+  const sl = S.slide;
+  sl.t += dt;
+  sl.v = Math.max(0, sl.v - sl.decel*dt);
+  S.v = sl.v;
+  if (d) S.yaw += d*.25*dt;                     // tirer sur une rêne en glissade : ça se paie
+  if (H.drift) S.yaw += .04*dt;
+  sl.maxDev = Math.max(sl.maxDev, Math.abs(S.yaw - sl.yaw0));
+  const before = sl.dist; moveForward(dt); sl.dist += S.v*dt;
+  // traces "11" des postérieurs
+  if (Math.floor(sl.dist/.18) > Math.floor(before/.18)){
+    const [fx,fz] = fwd(S.yaw), rx = -fz, rz = fx;
+    addMark(S.x + rx*.17, S.z + rz*.17, S.yaw); addMark(S.x - rx*.17, S.z - rz*.17, S.yaw);
+  }
+  if (Math.random() < dt*30) puff(S.x, S.z, 2, 1.6*sl.v/8);
+  Sound.slide(Math.min(1, sl.v/7));
+  if (sl.v <= 0){
+    Sound.slide(0);
+    S.mode = 'ride'; S.v = 0; S.gait = 0; S.lead = null; S.disunited = false;
+    S.sinceStop = 0; S.autoRollDone = false;
+    S.lastStop = { dist:sl.dist, v0:sl.v0, dev:sl.maxDev/DEG, x0:sl.x0, z0:sl.z0, yaw:sl.yaw0 };
+    emit('slideEnd', S.lastStop);
+    S.slide = null;
+  }
+}
+function startRollback(d, auto=false){
+  const dur = .98 - .45*H.st.roll;
+  S.mode = 'rollback'; S.halt = null;
+  S.roll = { dir:d, t:0, dur, yaw0:S.yaw, delay:S.sinceStop, auto };
+  S.v = 0;
+  puff(S.x, S.z, 8, 1.2);
+}
+function updateRollback(dt){
+  const r = S.roll; r.t += dt;
+  const k = clamp(r.t/r.dur, 0, 1), e = k<.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2;
+  S.yaw = r.yaw0 + r.dir*Math.PI*e;
+  if (k>=1){
+    S.mode = 'ride'; S.v = 3.4; S.gait = 4; S.lead = r.dir>0 ? 'L':'R'; S.disunited = false;
+    emit('rollback', { dir:r.dir, dur:r.dur, delay:r.delay, auto:r.auto, afterStop: !!S.lastStop && r.delay < 3 });
+    S.lastStop = null;
+    if (H.driftAfter){ S.driftT = 1.5; S.driftDir = r.dir; }
+    S.roll = null;
+  }
+}
+
+/* =========================================================
+   Animation de la vue cavalier
+   ========================================================= */
+const BEATS = { 1:[0,.25,.5,.75], 2:[0,.5], 3:[0,.5], 4:[0,.2,.36], 5:[0,.18,.32] };
+const ANIM = { // freq (foulées/s), rebond, tangage, roulis, encolure
+  0:{freq:0, y:0, pitch:0, roll:0, neck:0},
+  1:{freq:.705, y:.022, pitch:.006, roll:.012, neck:.07},
+  2:{freq:1.0, y:.045, pitch:.004, roll:.006, neck:.05},
+  3:{freq:1.26, y:.075, pitch:.008, roll:.01, neck:.07},
+  4:{freq:1.5, y:.075, pitch:.06, roll:.012, neck:.12},
+  5:{freq:1.71, y:.16, pitch:.1, roll:.015, neck:.14},
+};
+let earTwitch = 0, fpPitch = -.15, CAM_Y = 2.33; const camStab = {x:0, y:2.33, z:0};
+function animateRig(dt, t){
+  rig.position.set(S.x, 0, S.z);
+  rig.rotation.y = S.yaw;
+  const gaitForAnim = S.mode==='ride' ? S.gait : 0;
+  const target = ANIM[gaitForAnim];
+  const A = S.anim, k = 1-Math.exp(-dt*5);
+  for (const key of ['freq','y','pitch','roll','neck']) A[key] = lerp(A[key], target[key], k);
+  const speedFactor = S.mode==='ride' && S.gait ? clamp(Math.abs(S.v)/Math.max(.1, GAIT_SPEED[S.gait]*H.speedMul), .3, 1.3) : 0;
+  S.legsSoft = lerp(S.legsSoft ?? 1, (S.mode==='ride' && held('legs')) ? .88 : 1, 1 - Math.exp(-dt*4));   // jambes : même vitesse, foulée plus douce
+  S.phase += A.freq * speedFactor * S.legsSoft * dt;
+  S.legsLow = lerp(S.legsLow ?? 0, (S.mode==='ride' && S.v < -.1) ? 1.15 : (S.mode==='ride' && S.gait>=2 && held('legs')) ? (S.gait>=4 ? 1 : .8) : 0, 1 - Math.exp(-dt*2.5));   // galop aux jambes : encolure basse, dos remonté
+  const ph = S.phase % 1, w = Math.PI*2;
+  // battues
+  const beats = BEATS[S.gait];
+  if (beats && S.mode==='ride' && Math.abs(S.v) > .3){
+    const prev = S.lastBeat;
+    for (const b of beats){ const crossed = prev <= ph ? (b > prev && b <= ph) : (b > prev || b <= ph); if (crossed) Sound.hoof(S.gait>=4 ? .9 : S.gait===3 ? .7 : .45); }
+  }
+  S.lastBeat = ph;
+  let y, pitch, roll, neck;
+  if (S.gait===5 && S.mode==='ride'){ // grand galop : mesuré sur l'animation de référence (croupe basse à la réception des postérieurs, tête qui plonge à l'appui des antérieurs)
+    pitch = A.pitch*Math.cos(w*(ph-.05)); y = A.y*(.5+.5*Math.cos(w*(ph-.82))); neck = -A.neck*Math.cos(w*(ph-.27));
+    roll = A.roll*Math.sin(w*ph)*(S.lead==='L'? 1 : -1);
+  } else if (S.gait>=4 && S.mode==='ride'){ // galop : bascule à trois temps
+    pitch = A.pitch*Math.cos(w*(ph-.95)); y = A.y*(.5+.5*Math.cos(w*(ph-.8))); neck = -pitch*1.1 + A.neck*.25*Math.sin(w*(ph-.3));
+    roll = A.roll*Math.sin(w*ph)*(S.lead==='L'? 1 : -1) + (S.lead==='L' ? .015 : S.lead==='R' ? -.015 : 0);
+    if (S.disunited){ y += .025*Math.sin(w*ph*3); roll += .02*Math.sin(w*ph*2); }
+  } else if (S.gait===2 || S.gait===3){ // trot : deux temps
+    y = A.y*(.5+.5*Math.cos(2*w*(ph-.48))); pitch = A.pitch*Math.sin(2*w*ph); roll = A.roll*Math.sin(w*ph); neck = -A.neck*Math.cos(2*w*(ph-.23));   // la tête descend en milieu d'appui
+  } else { // pas
+    y = A.y*Math.sin(2*w*ph); pitch = A.pitch*Math.sin(2*w*ph); roll = A.roll*Math.sin(w*ph); neck = A.neck*Math.sin(2*w*ph+.4);
+  }
+  // figures
+  let extraPitch = 0, extraY = 0, extraRoll = 0;
+  if (S.mode==='slide'){ const s = S.slide; extraPitch = .11*Math.min(1, s.t*3); extraY = -.22*Math.min(1, s.t*3); neck += -.12; y = .015*Math.sin(t*38); }
+  if (S.mode==='spin'){ extraRoll = -S.spin.dir*.04*S.spin.rate; extraPitch = .03*S.spin.rate; neck += .05*S.spin.rate; }
+  if (S.mode==='rollback'){ const k=S.roll.t/S.roll.dur; extraPitch = .14*Math.sin(Math.PI*k); extraY = -.12*Math.sin(Math.PI*k); extraRoll = -S.roll.dir*.08*Math.sin(Math.PI*k); }
+  if (S.mode==='ride' && S.v < -.1){ y = .02*Math.abs(Math.sin(t*6)); extraPitch = -.03; }
+  if (PACK.ready && S.mode==='ride' && Math.abs(S.v) > .15 && S.v > 0){ y = 0; pitch = 0; roll = 0; }   // le pack porte déjà le mouvement du dos
+  body.position.y = y + extraY;
+  body.rotation.x = pitch + extraPitch;
+  body.rotation.z = roll + extraRoll + (S.mode==='ride' ? -S.steer*.025*Math.min(1,Math.abs(S.v)/4) - (S.collapseDir||0)*.07*(S.collapseK||0) : 0);   // épaule qui tombe quand Shérif s'écroule
+  { const st = S.mode==='spin' ? .55 : .72;                      // part du mouvement absorbée par le cavalier
+    const tp = -(body.rotation.x)*st, tr = -(body.rotation.z)*st*.85, ty = CAM_Y - body.position.y*.6 + (PACK.cur ? (PACK.bob||0)*.45 : 0);
+    const k = 1 - Math.exp(-dt*9); camStab.x = lerp(camStab.x, tp, k); camStab.z = lerp(camStab.z, tr, k); camStab.y = lerp(camStab.y, ty, k);
+    camera.position.y = camStab.y;
+    camera.rotation.set(fpPitch + camStab.x + (S.mode==='ride' && S.gait>=4 ? -.02 : 0), S.mode==='ride' ? S.steer*.05 : 0, camStab.z); }
+  neckPivot.rotation.x = neck;
+  animateHorse(dt, t, neck);
+  groundHooves();   // après la pose : les sabots restent au-dessus du sol
+  neckPivot.rotation.y = (S.mode==='ride' ? S.steer*.1 : S.mode==='spin' ? S.spin.dir*.12 : 0);
+  if (horseParts){
+    const hp = horseParts;
+    hp.headPivot.rotation.x = neck*.5 + (S.mode==='slide' ? .25 : 0);
+    // oreilles : vers le côté du virage, en arrière sur un whoa, petits mouvements au repos
+    earTwitch -= dt; if (earTwitch < 0) earTwitch = 2 + Math.random()*4;
+    const tw = earTwitch < .25 ? Math.sin(earTwitch*25)*.3 : 0;
+    const back = S.mode==='slide' ? .9 : 0;
+    const turn = S.mode==='ride' ? S.steer : S.mode==='spin' ? S.spin.dir : 0;
+    hp.earL.rotation.set(-.25 + back + (turn>0? -.25:.15)*Math.abs(turn) + tw, 0, .3);
+    hp.earR.rotation.set(-.25 + back + (turn<0? -.25:.15)*Math.abs(turn), 0, -.3);
+    const sway = S.gait>=4 ? .25 : .08;
+    hp.mane.forEach((m,i)=>{ m.rotation.x = Math.sin(t*(4+S.anim.freq*3) + i*.5)*sway*Math.min(1,Math.abs(S.v)/3 + .2); });
+  }
+}
+
+/* =========================================================
+   Plan de la carrière
+   ========================================================= */
+const mm = $('#minimap'), mx = mm.getContext('2d');
+function drawMinimap(){
+  const w = mm.width, h = mm.height, pad = 16;
+  const sx = (w-pad*2)/(W*2), sz = (h-pad*2)/(L*2);
+  const P = (x,z) => [pad + (x+W)*sx, pad + (z+L)*sz];
+  mx.clearRect(0,0,w,h);
+  mx.fillStyle = 'rgba(205,176,132,.28)'; mx.fillRect(pad,pad,w-pad*2,h-pad*2);
+  mx.strokeStyle = 'rgba(245,236,215,.7)'; mx.lineWidth = 2; mx.strokeRect(pad,pad,w-pad*2,h-pad*2);
+  for (const [z,c] of [[-MARK,'#e0702e'],[MARK,'#e0702e'],[0,'#5b9ad0']]){ const [a,b]=P(-W,z), [c2]=P(W,z); mx.fillStyle=c; mx.fillRect(a-8,b-3,8,6); mx.fillRect(c2,b-3,8,6); }
+  mx.strokeStyle = 'rgba(245,236,215,.15)'; mx.setLineDash([4,6]); mx.beginPath(); const [cx1,cy1]=P(0,-L), [cx2,cy2]=P(0,L); mx.moveTo(cx1,cy1); mx.lineTo(cx2,cy2); mx.stroke(); mx.setLineDash([]);
+  mx.strokeStyle = 'rgba(200,169,110,.85)'; mx.lineWidth = 2.2; mx.beginPath();
+  S.trail.forEach((p,i)=>{ const [a,b]=P(p[0],p[1]); i?mx.lineTo(a,b):mx.moveTo(a,b); }); mx.stroke();
+  const [hx,hz] = P(S.x,S.z), [fx,fz] = fwd(S.yaw);
+  mx.save(); mx.translate(hx,hz); mx.rotate(Math.atan2(fz,fx)+Math.PI/2);
+  mx.fillStyle = '#F5ECD7'; mx.beginPath(); mx.moveTo(0,-11); mx.lineTo(7,7); mx.lineTo(0,3); mx.lineTo(-7,7); mx.closePath(); mx.fill(); mx.restore();
+}
+
+/* =========================================================
+   Événements, monte libre et pattern
+   ========================================================= */
+let mode = 'free';
+const listeners = [];
+function emit(type, data){ listeners.forEach(f=>f(type, data)); }
+const fmtRevs = r => `${fr(r,2)} tour${r>=2?'s':''}`;
+
+listeners.push((type, d)=>{
+  if (mode !== 'free') return;
+  if (type==='spinEnd') toast(`Spins à ${sideName(d.dir)} : ${fmtRevs(d.revs)}, ${fr(d.avg,2)} tour/s`, 'good');
+  if (type==='slideEnd') toast(`Sliding stop : ${fr(d.dist,1)} m depuis ${Math.round(d.v0*3.6)} km/h${d.dev>6?', de travers':''}`, d.dist>1.8?'good':'');
+  if (type==='rollback') toast(`Rollback à ${sideName(d.dir)} en ${fr(d.dur,2)} s`, 'good');
+  if (type==='backupEnd' && d.dist>1) toast(`Reculer : ${fr(d.dist,1)} m`, '');
+});
+
+// Pattern officiel de reining (4-H de l'État de Washington, approuvé en mars 2025).
+// Départ au centre, face au mur des juges. Vu du juge : cercles à droite côté −z, à gauche côté +z,
+// descentes le long des grands côtés vers le fond +z, marqueur central (bleu) au milieu du grand côté.
+const MANEUVERS = [
+  {id:'spinR',  label:'2 spins à droite, hésitation', hint:'Au centre, face au juge : maintenez <b>→</b> pour deux tours à droite, relâchez un peu avant le compte, puis restez immobile une seconde.'},
+  {id:'spinL',  label:'2 spins à gauche, hésitation', hint:'Maintenez <b>←</b> pour deux tours à gauche, relâchez un peu avant le compte, puis une seconde d\'immobilité.'},
+  {id:'circR',  label:'2 cercles à droite : 1 grand rapide, 1 petit lent, changement de pied au centre', hint:'Départ au petit galop pied droit (<b>→</b> maintenu puis <b>↑</b>). Premier cercle grand et rapide (<b>↑</b> galop allongé), le second petit et lent (<b>↓</b>), puis <b>C</b> au centre pour passer à gauche.'},
+  {id:'circL',  label:'2 cercles à gauche : 1 grand rapide, 1 petit lent, changement de pied au centre', hint:'Un grand cercle rapide à gauche, puis un petit lent, et <b>C</b> au centre pour repasser pied droit.'},
+  {id:'rund1',  label:'Grand cercle à droite sans le fermer, descente côté droit, rollback à gauche', hint:'Repartez sur le grand cercle à droite sans le fermer, descendez le grand côté opposé au juge au galop allongé, <b>Espace</b> après le marqueur bleu du centre, puis <b>←</b> dans les 3 secondes, sans hésiter.'},
+  {id:'rund2',  label:'Descente côté gauche, rollback à droite', hint:'Remontez, tournez au fond sans fermer le cercle et descendez le côté du juge. <b>Espace</b> après le marqueur bleu, à au moins 6 m du mur, puis <b>→</b> dans les 3 secondes.'},
+  {id:'final',  label:'Descente côté droit, sliding stop, reculer, hésitation', hint:'Dernier tour du fond, descente côté opposé au juge, sliding stop après le marqueur bleu et à au moins 6 m du mur, puis <b>↓</b> maintenu pour reculer d\'au moins 3 m. Immobile une seconde pour finir.'},
+];
+const P = { idx:0, scores:[], pens:[], notes:[], done:false, c:null };
+function patternReset(){
+  Object.assign(P, { idx:0, scores:MANEUVERS.map(()=>null), pens:MANEUVERS.map(()=>0), notes:MANEUVERS.map(()=>[]), done:false, c:null, hes:null, stop:null, run:null });
+  renderPattern();
+}
+function pen(i, v, note){ P.pens[i] += v; P.notes[i].push(`${note} (−${fr(v,1)})`); }
+function finish(i, raw, extra=[]){
+  P.scores[i] = clamp(roundHalf(raw), -1.5, 1.5);
+  P.notes[i].unshift(...extra);
+  const total = P.scores[i] - P.pens[i];
+  toast(`${MANEUVERS[i].label} : ${fmtScore(P.scores[i])}${P.pens[i]?' , pénalités '+fr(P.pens[i],1):''}`, total>=0?'good':'warn');
+  P.idx = i+1; P.c = null; P.stop = null; P.hes = null; P.run = null;
+  if (P.idx >= MANEUVERS.length) endPattern();
+  renderPattern();
+}
+function spinScore(d, i, needDir){
+  const extra = [];
+  if (d.dir !== needDir){ toast(`Mauvais sens : ${MANEUVERS[i].label}`, 'warn'); return; }
+  const off = (d.revs - 2)*360;
+  let raw = d.avg >= .43 ? 1 : d.avg >= .37 ? .5 : d.avg >= .29 ? 0 : -.5;
+  if (d.drift > .7) { raw -= .5; extra.push('Pivot qui se déplace'); }
+  if (d.peak - d.avg > .16) { raw -= .5; extra.push('Vitesse irrégulière'); }
+  extra.unshift(`${fmtRevs(d.revs)} à ${fr(d.avg,2)} tour/s`);
+  const a = Math.abs(off);
+  if (a > 90) pen(i, a>180 ? 2 : 1, off>0?'Sur-rotation de plus d\'un quart de tour':'Sous-rotation de plus d\'un quart de tour');
+  else if (a > 45) pen(i, .5, off>0?'Sur-rotation entre 1/8 et 1/4 de tour':'Sous-rotation entre 1/8 et 1/4 de tour');
+  if (H.anticipate && off > 30) { raw -= .5; extra.push('Cameron anticipe la fin des spins'); }
+  P.hes = { raw, extra, t:0 };     // la note tombe après l'hésitation demandée
+  toast('Hésitation : restez immobile une seconde', '');
+}
+listeners.push((type, d)=>{
+  if (mode!=='pattern' || P.done) return;
+  const i = P.idx, m = MANEUVERS[i]; if (!m) return;
+  if (m.id==='spinR' && type==='spinEnd' && !P.hes) spinScore(d, i, -1);
+  else if (m.id==='spinL' && type==='spinEnd' && !P.hes) spinScore(d, i, 1);
+  else if ((m.id==='spinR' || m.id==='spinL') && P.hes && (type==='lopeDepart' || type==='spinStart')){ pen(i, .5, 'Pas d\'hésitation'); finish(i, P.hes.raw, P.hes.extra); }
+  else if ((m.id==='circR' || m.id==='circL')){
+    const need = m.id==='circR' ? 'R' : 'L';
+    if (type==='lopeDepart' && !P.c){ startCircles(need); if (d.lead!==need) P.c.badDepart = true; if (Math.hypot(S.x, S.z) > 4) pen(i, .5, 'Départ loin du centre'); }
+    if (type==='leadChange' && P.c){
+      const c = P.c;
+      if (!c.awaitChange){ pen(i, .5, 'Changement de pied anticipé'); }
+      else {
+        if (Math.hypot(S.x, S.z) > 6) pen(i, .5, 'Changement de pied loin du centre');
+        if (!d.clean) pen(i, 1, 'Changement incomplet');
+        closeCircles(i);
+        if (need==='R') startCircles('L');     // on enchaîne directement les cercles à gauche
+      }
+    }
+  }
+  else if (/rund|final/.test(m.id) && type==='slideEnd'){
+    const side = m.id==='rund2' ? -1 : 1;     // −1 : côté du juge, +1 : côté opposé
+    const extra = [`Stop de ${fr(d.dist,1)} m lancé à ${Math.round(d.v0*3.6)} km/h`];
+    let raw = 0;
+    if (d.v0 >= 8) raw += .5; else if (d.v0 < 6.5) { raw -= .5; extra.push('Descente trop lente'); }
+    if (d.dist >= 2.25) raw += .5; else if (d.dist < 1.2) { raw -= .5; extra.push('Stop court'); }
+    if (d.dev < 4) raw += .5; else if (d.dev > 10) { raw -= .5; extra.push('Stop de travers'); }
+    if (Math.sign(S.x) !== side || Math.abs(S.x) < 4) pen(i, 2, side>0 ? 'Descente du mauvais côté (côté opposé au juge demandé)' : 'Descente du mauvais côté (côté du juge demandé)');
+    if (S.z < 0) pen(i, .5, 'Stop avant le marqueur du centre');
+    if (S.z > L - 6) pen(i, .5, 'Stop à moins de 6 m du mur');
+    if (P.run && P.run.closed) pen(i, 1, 'Cercle refermé avant la descente');
+    P.stop = { raw, extra, t:0 };
+  }
+  else if ((m.id==='rund1' || m.id==='rund2') && type==='rollback' && P.stop){
+    const need = m.id==='rund1' ? 1 : -1;
+    let { raw, extra } = P.stop;
+    if (d.dir !== need){ extra.push('Rollback du mauvais côté'); if (d.auto) pen(i, .5, 'Anticipation'); finish(i, -1.5, extra); return; }
+    if (d.dur < .62) raw += .5;
+    if (d.delay > 1.2) { raw -= .5; extra.push('Hésitation avant le rollback'); }
+    if (d.auto) pen(i, .5, 'Anticipation');
+    extra.push(`Rollback en ${fr(d.dur,2)} s`);
+    finish(i, raw/1.5, extra);
+  }
+  else if (m.id==='final' && type==='backupEnd' && P.stop){
+    P.stop.backup = (P.stop.backup||0) + d.dist; P.stop.backupT = (P.stop.backupT||0) + d.t;
+  }
+  else if (m.id==='final' && type==='lopeDepart' && P.stop){
+    pen(i, 1, 'Pas de reculer'); finish(i, P.stop.raw/1.5 - .5, P.stop.extra);
+  }
+});
+function startCircles(need){
+  P.c = { need, accum:0, out:0, dis:0, sp:[[],[]], pts:[[],[]], awaitChange:false, extra:0, badDepart:false };
+}
+function closeCircles(i){
+  const c = P.c, extra = [];
+  const avg = a => a.length ? a.reduce((s,v)=>s+v,0)/a.length : 0;
+  const a1 = avg(c.sp[0]), a2 = avg(c.sp[1]);     // a1 : grand cercle rapide, a2 : petit cercle lent
+  let raw = 0;
+  extra.push(`Grand cercle ${Math.round(a1*3.6)} km/h, petit ${Math.round(a2*3.6)} km/h`);
+  if (a1 - a2 >= 1.6) raw += .5; else extra.push('Pas assez de différence de vitesse');
+  if (a1 >= 6.3) raw += .5;
+  const cv = pts => { if (pts.length<8) return 1; const mx=avg(pts.map(p=>p[0])), mz=avg(pts.map(p=>p[1])); const r=pts.map(p=>Math.hypot(p[0]-mx,p[1]-mz)); const m=avg(r); const sd=Math.sqrt(avg(r.map(v=>(v-m)**2))); return sd/m; };
+  const rad = pts => { if (pts.length<8) return 0; const mx=avg(pts.map(p=>p[0])), mz=avg(pts.map(p=>p[1])); return avg(pts.map(p=>Math.hypot(p[0]-mx,p[1]-mz))); };
+  const round = Math.max(cv(c.pts[0]), cv(c.pts[1]));
+  if (round < .16) raw += .5; else if (round > .32) { raw -= .5; extra.push('Cercles peu ronds'); }
+  if (rad(c.pts[0]) && rad(c.pts[1]) && rad(c.pts[1]) > rad(c.pts[0])*.85) { raw -= .5; extra.push('Petit cercle pas assez petit'); }
+  if (c.dis > .6) { raw -= .5; extra.push('Galop désuni'); }
+  if (c.badDepart) extra.push('Départ au mauvais pied');
+  if (c.out > .4) pen(i, Math.min(3, Math.ceil(c.out/1.5)), 'Galop sur le mauvais pied');
+  finish(i, raw, extra);
+}
+function patternTick(dt){
+  if (mode!=='pattern' || P.done) return;
+  const i = P.idx, m = MANEUVERS[i]; if (!m) return;
+  if (P.hes && (m.id==='spinR' || m.id==='spinL')){
+    if (S.mode==='ride' && S.stillT > 1) finish(i, P.hes.raw, P.hes.extra);
+    else if (S.mode==='spin' && S.spin && S.spin.rate > .1){ pen(i, .5, 'Pas d\'hésitation'); finish(i, P.hes.raw, P.hes.extra); }
+  }
+  if (P.c && (m.id==='circR' || m.id==='circL')){
+    const c = P.c;
+    if (S.mode==='ride' && S.gait>=4){
+      const dy = (S.lastYawRate||0)*dt;
+      c.accum += c.need==='L' ? dy : -dy;
+      const k = c.accum < Math.PI*2 ? 0 : 1;
+      c.sp[k].push(S.v);
+      if (Math.random()<.25) c.pts[k].push([S.x,S.z]);
+      if (S.lead !== c.need && !(c.awaitChange)) c.out += dt;
+      if (S.disunited) c.dis += dt;
+      if (!c.toldSmall && k===1){ c.toldSmall = true; toast('Grand cercle bouclé : petit cercle lent (↓)', 'good'); }
+      if (!c.awaitChange && c.accum >= (720-25)*DEG){ c.awaitChange = true; toast('Deux cercles : changement de pied au centre (C)', 'good'); }
+      if (c.awaitChange){ c.extra = c.accum - (720-25)*DEG; if (c.extra > 150*DEG){ pen(i, 1, 'Changement de pied manqué'); const wasR = c.need==='R'; closeCircles(i); if (wasR) startCircles('L'); } }
+    } else if (S.mode==='ride' && S.gait<4 && c.accum > .5){
+      c.breakT = (c.breakT||0) + dt;
+      if (c.breakT > .8 && !c.broke){ c.broke = true; pen(i, 2, 'Rupture d\'allure'); }
+    }
+  }
+  // descentes : le cercle ne doit pas se refermer au centre avant de partir sur le grand côté
+  if (/rund|final/.test(m.id) && !P.stop){
+    P.run = P.run || { closed:false, far:false };
+    if (Math.hypot(S.x, S.z) > 10) P.run.far = true;
+    if (P.run.far && S.gait>=4 && Math.hypot(S.x, S.z) < 3 && Math.abs(S.z) < 3) P.run.closed = true;
+  }
+  if (P.stop && (m.id==='rund1' || m.id==='rund2')){
+    P.stop.t += dt;
+    if (P.stop.t > 3.5 && S.mode!=='rollback'){ const {raw, extra} = P.stop; extra.push('Pas de rollback'); finish(i, raw/1.5 - 1, extra); }
+  }
+  if (P.stop && m.id==='final'){
+    const b = (P.stop.backup||0) + S.backup;
+    if (b >= 3 && S.stillT > 1){
+      let raw = P.stop.raw/1.5 + .5; const extra = [...P.stop.extra, `Reculer de ${fr(b,1)} m`];
+      const t = (P.stop.backupT||0) + S.backupT; if (t>0 && b/t > 1.15) raw += .5;
+      finish(i, raw, extra);
+    }
+  }
+}
+function renderPattern(){
+  if (mode!=='pattern'){ $('#patternPanel').hidden = true; updatePatternGround(); return; }
+  $('#patternPanel').hidden = false;
+  const total = 70 + P.scores.reduce((s,v)=>s+(v||0),0) - P.pens.reduce((s,v)=>s+v,0);
+  $('#pattern').innerHTML = `<div class="ptitle">Pattern de reining</div>` + MANEUVERS.map((m,i)=>{
+    const s = P.scores[i], cls = i===P.idx ? 'now' : s!==null ? 'done' : '';
+    const sc = s===null ? '' : `<span class="sc ${s>0?'pos':s<0?'neg':''}">${fmtScore(s)}${P.pens[i]?` <span class="neg">−${fr(P.pens[i],1)}</span>`:''}</span>`;
+    return `<div class="mv ${cls}"><span class="n">${i+1}</span><span>${m.label}</span>${sc}</div>`;
+  }).join('') + `<div class="ptotal"><span>Note en cours</span><b>${fr(total,1)}</b></div>`;
+  const m = MANEUVERS[P.idx];
+  $('#instr').innerHTML = m ? m.hint : 'Pattern terminé.';
+  updatePatternGround();
+}
+function endPattern(){
+  P.done = true;
+  const total = 70 + P.scores.reduce((s,v)=>s+(v||0),0) - P.pens.reduce((s,v)=>s+v,0);
+  const rows = MANEUVERS.map((m,i)=>`<tr><td>${i+1}</td><td>${m.label}<small>${P.notes[i].join(' · ')||'Propre'}</small></td><td class="r">${fmtScore(P.scores[i]||0)}</td><td class="r">${P.pens[i]?'−'+fr(P.pens[i],1):''}</td></tr>`).join('');
+  $('#sheetTable').innerHTML = `<thead><tr><th>#</th><th>Manœuvre</th><th class="r">Note</th><th class="r">Pén.</th></tr></thead><tbody>${rows}</tbody>`;
+  $('#sheetScore').textContent = fr(total,1);
+  $('#sheetSub').textContent = `Feuille de juge · ${H.name}`;
+  $('#sheetVerdict').textContent = total >= 73 ? `Le juge range son stylo avec un respect certain. ${H.name} et vous, c'est du sérieux.`
+    : total >= 70.5 ? `Au-dessus de 70 : la base est là, ${H.name} a fait son travail et vous le vôtre, ou presque.`
+    : total >= 68 ? `Un passage honnête. Le juge a vu de belles choses, et d'autres qu'il préfère oublier.`
+    : total >= 64 ? `Le juge a eu besoin d'un deuxième café. On reprend les fondamentaux et on y retourne.`
+    : `Le juge a demandé si c'était une reprise de trail. Courage, ${H.name} vous attend au box.`;
+  const prev = records[H.name];
+  if (!prev || total > prev){ records[H.name] = Math.round(total*10)/10; store.set('cj-records', records); if (prev) $('#sheetVerdict').textContent += ' Nouveau record personnel.'; }
+  setTimeout(()=>{ $('#sheet').hidden = false; playing = false; keys.clear(); $('#sheetAgain').focus(); }, 900);
+}
+
+/* =========================================================
+   HUD
+   ========================================================= */
+function buildGaitPills(){ $('#gaits').innerHTML = GAITS.map((g,i)=>`<span class="gait" id="g${i}">${g}</span>`).join(''); }
+buildGaitPills();
+let lastHud = '';
+function updateHud(){
+  const g = S.mode==='spin' ? -1 : S.gait;
+  const label = S.mode==='spin' ? 'spin' : S.mode==='slide' ? 'slide' : S.mode==='rollback' ? 'roll' : String(S.gait);
+  const leadTxt = S.mode==='spin' ? `Spin ${sideName(S.spin.dir)}, ${fr(S.spin.total/(Math.PI*2),2)} tour`
+    : S.mode==='slide' ? 'Sliding stop' : S.mode==='rollback' ? 'Rollback'
+    : S.v < -.1 ? 'Reculer' : S.gait>=4 ? (S.disunited ? 'Désuni' : (S.lead==='L' ? 'Pied gauche' : 'Pied droit')) : 'Pas de galop';
+  const key = label+leadTxt+S.disunited;
+  if (key !== lastHud){
+    lastHud = key;
+    GAITS.forEach((_,i)=>$('#g'+i).classList.toggle('on', i===g));
+    const el = $('#lead'); el.textContent = leadTxt;
+    el.className = 'chip' + (S.disunited ? ' bad' : S.gait>=4 ? ' ok' : '');
+  }
+  if (S.mode==='spin') $('#lead').textContent = leadTxt;
+  $('#speed').textContent = `${Math.round(Math.abs(S.v)*3.6)} km/h`;
+}
+
+/* =========================================================
+   Boucle et navigation
+   ========================================================= */
+let playing = false, lastT = 0, frameN = 0, lastStep = 0;
+function restart(){
+  resetState(); if (mode==='pattern') S.yaw = Math.PI/2;   // au centre, face au juge assis au milieu du grand côté
+  buildHorse(H); if (model){ neckPivot.visible = false; applyCoat(H); }
+  updateTpCam(0, true);
+  if (mode==='pattern') patternReset(); else renderPattern();
+  $('#instr').innerHTML = mode==='pattern' ? MANEUVERS[0].hint : `Monte libre sur <b>${H.name}</b>. Gardez <b>Maj</b> enfoncé pour mettre des jambes et placer votre cheval : il tient son allure et s'arrondit. Montez les allures avec la flèche <b>↑</b>, essayez un sliding stop lancé au galop allongé, ou des spins à l'arrêt.`;
+  $('#hName').textContent = H.name;
+  $('#sheet').hidden = true;
+}
+function start(m){
+  mode = m; H = HORSES[selected];
+  Sound.init(); if (Sound.ctx && Sound.ctx.state==='suspended') Sound.ctx.resume();
+  restart();
+  $('#menu').hidden = true;
+  for (const id of ['#hudTL','#hudTR','#legend','#topBtns','#touch']) $(id).hidden = false;
+  playing = true; keys.clear(); pressed.clear();
+  resize();
+  if (mode==='pattern') toast('Face au juge. Deux spins à droite pour commencer.', '');
+  else toast(`${H.name} est sellé. Bonne monte.`, '');
+}
+function openMenu(){
+  playing = false; keys.clear(); Sound.slide(0);
+  for (const id of ['#hudTL','#hudTR','#legend','#topBtns','#touch']) $(id).hidden = true;
+  $('#sheet').hidden = true; renderMenu(); $('#menu').hidden = false;
+}
+$('#goFree').addEventListener('click', ()=>start('free'));
+$('#goPattern').addEventListener('click', ()=>start('pattern'));
+$('#btnMenu').addEventListener('click', openMenu);
+$('#btnView').addEventListener('click', e=>{ toggleView(); e.currentTarget.blur(); });
+// tuto repliable : replié par défaut (gêne moins sur téléphone), le choix est retenu
+function setFold(f){
+  $('#hudTL').classList.toggle('folded', f);
+  $('#btnFold').textContent = f ? 'Tuto ▾' : 'Replier ▴';
+  $('#btnFold').setAttribute('aria-expanded', String(!f));
+  store.set('cj-fold', f);
+}
+setFold(store.get('cj-fold') ?? true);
+$('#btnFold').addEventListener('click', e=>{ setFold(!$('#hudTL').classList.contains('folded')); e.currentTarget.blur(); });
+// caméra : on pivote autour du cheval en glissant le doigt ou la souris (clic gauche maintenu)
+{
+  const cv = renderer.domElement; let drag = null;
+  cv.addEventListener('pointerdown', e => {
+    if (e.pointerType==='mouse' && e.button!==0) return;
+    drag = { id:e.pointerId, x:e.clientX, y:e.clientY }; cv.setPointerCapture(e.pointerId); cv.classList.add('dragging');
+    if (view!=='ext') toggleView();
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId!==drag.id) return;
+    const k = 5.5 / Math.max(320, Math.min(innerWidth, innerHeight));
+    orbit.yaw -= (e.clientX - drag.x) * k;
+    orbit.pitch = clamp(orbit.pitch + (e.clientY - drag.y) * k * .7, -.12, .95);
+    drag.x = e.clientX; drag.y = e.clientY; orbit.active = .4;
+  });
+  const end = e => { if (drag && e.pointerId===drag.id){ drag = null; cv.classList.remove('dragging'); } };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+  cv.addEventListener('dblclick', () => { orbit.yaw = 0; orbit.pitch = 0; });   // double-clic : caméra replacée derrière le cheval
+}
+$('#btnView').textContent = view==='ext' ? 'Vue selle' : 'Vue extérieure';
+$('#btnSound').addEventListener('click', e=>{ Sound.on = !Sound.on; e.currentTarget.textContent = 'Son : ' + (Sound.on?'oui':'non'); if(!Sound.on) Sound.slide(0); e.currentTarget.blur(); });
+$('#sheetAgain').addEventListener('click', ()=>{ start('pattern'); });
+$('#sheetMenu').addEventListener('click', openMenu);
+
+function loop(ts){
+  const t = ts/1000, dt = Math.min(.12, lastT ? t-lastT : .016); lastT = t;
+  if (playing){
+    let rem = Math.min(.12, lastStep + dt); lastStep = 0;
+    while (rem > 1e-4 && playing){ const st = Math.min(rem, .034); update(st); patternTick(st); rem -= st; }
+    updateHud();
+  }
+  animateRig(dt, t);
+  updateDust(dt);
+  if (playing) drawMinimap();
+  updateTpCam(dt);
+  if (playing || $('#menu').hidden || (frameN++ % 20 === 0)) renderer.render(scene, view==='ext' ? tpCam : camera);
+  requestAnimationFrame(loop);
+}
+resetState(); buildHorse(HORSES[selected]); resize(); loadModel();
+(document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(makeSign, makeSign);
+requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>
