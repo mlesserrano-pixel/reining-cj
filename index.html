@@ -283,6 +283,7 @@ td small{display:block;font-family:var(--f-body);font-size:12.5px;color:#6b4a2d;
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 <script src="horse-model.js"></script>
 <script src="pack-anims.js"></script>
 <script>
@@ -1140,7 +1141,7 @@ const PROM = (() => {
   plant(bigW, crown(5, 6), leafMat, () => [2.5 + r()*.8, 1], 4.2, false);
   plant(smallW, crown(31, 4), leafMat, () => [1.15 + r()*.4, .8], 0, true);
   plant(RING, crown(13, 4), leafMat, () => [2.4 + r()*1.4, 1.1], 4, false);
-  bigW.forEach(([x, z]) => OBST.push([x, z, .6])); smallW.forEach(([x, z]) => OBST.push([x, z, 1.5]));
+  bigW.forEach(([x, z]) => OBST.push([x, z, .6])); smallW.forEach(([x, z]) => OBST.push([x, z, 2.5]));
 
   // ---- fleurs : jaunes éparpillées dans la prairie, champ violet et bleu au nord de la rivière
   const flowerTex = (col) => canvasTex(64, 64, (x, w, h) => {
@@ -1220,6 +1221,8 @@ const PROM = (() => {
       toast(blocked === 'river' ? `${H.name} refuse l'eau : la rivière est trop profonde, passez par le pont` : blocked === 'tree' ? 'Attention aux arbres !' : 'Hooo, la clôture !', 'warn', 'prom-'+blocked, 3);
     }
     if (blocked === 'gate') toast('Sortie : Échap pour rentrer à l\'écurie', '', 'prom-gate', 4);
+    if (typeof NPCS !== 'undefined') for (const n of NPCS.list){ if (!n.root.visible) continue; const dx = S.x - n.x, dz = S.z - n.z, d = Math.hypot(dx, dz);
+      if (d < 2.4 && d > 1e-3){ S.x = n.x + dx/d*2.4; S.z = n.z + dz/d*2.4; if (S.v > 1.5){ S.v *= .5; toast(`Attention, ${n.h.name} est sur votre chemin`, 'warn', 'npc', 3); } } }
   }
   // ---- animation de l'eau et de la cascade
   let t = 0;
@@ -1251,7 +1254,15 @@ const PROM = (() => {
     const [hx, hz] = Q(S.x, S.z), [fx, fz] = fwd(S.yaw);
     mx.save(); mx.translate(hx, hz); mx.rotate(Math.atan2(fz, fx) + Math.PI/2); mx.fillStyle = '#F5ECD7'; mx.beginPath(); mx.moveTo(0, -9); mx.lineTo(6, 6); mx.lineTo(0, 2); mx.lineTo(-6, 6); mx.closePath(); mx.fill(); mx.restore();
   }
-  return { group, walkY, collide, animate, drawMap, start:[gx + 4, gz], HX, HZ };
+  // côté de la rivière (sud = 1, nord = -1) : signe du produit vectoriel avec le tronçon le plus proche
+  function side(x, z){
+    let best = 1e9, sg = 1;
+    for (let i=0;i<RIV.length-1;i++){ const [ax, az] = RIV[i], [bx, bz] = RIV[i+1], dx = bx-ax, dz = bz-az, L2 = dx*dx+dz*dz;
+      const t = clamp01(((x-ax)*dx + (z-az)*dz)/L2), d = Math.hypot(x-ax-dx*t, z-az-dz*t); if (d < best){ best = d; sg = Math.sign(dx*(z-az) - dz*(x-ax)) || 1; } }
+    return sg;
+  }
+  const bridgeEnds = [[b0x - bdx*3, b0z - bdz*3], [b1x + bdx*3, b1z + bdz*3]];   // un peu au-delà de chaque bout du pont
+  return { group, walkY, groundH, riverD, onBridge, side, bridgeEnds, OBST, collide, animate, drawMap, start:[gx + 4, gz], HX, HZ, cliff:[cfx, cfz] };
 })();
 let promY = 0;
 function setWorld(m){
@@ -1407,12 +1418,18 @@ const coatU = {
   uForehead:{value:new THREE.Vector3(0,2,-2)}, uPieZone:{value:0}, uPieF:{value:1}, uBn:{value:0}, uFaceOff:{value:0}, uPinkOn:{value:0}, uBl:{value:Array.from({length:16},()=>new THREE.Vector4())}, uBr:{value:Array.from({length:16},()=>new THREE.Vector3(1,1,1))}, uNose:{value:new THREE.Vector3(0,1.5,-2.3)}
 };
 const hairMats = [];
+window.coatU0 = coatU;
 const eyeU = { uBlue:{value:0} };
+window.eyeU0 = eyeU;
 const hairU = { uManeC:{value:new THREE.Color()}, uTailC:{value:new THREE.Color()}, uPollC:{value:new THREE.Color()}, uTipC:{value:new THREE.Color()}, uTipH:{value:-1} };
-function setupHair(m){
+function cloneU(U){   // copie profonde des uniformes (chaque cheval de la promenade a sa propre robe)
+  const o = {}; for (const [k, v] of Object.entries(U)){ const x = v.value; o[k] = { value: Array.isArray(x) ? x.map(e => e.clone()) : (x && x.clone) ? x.clone() : x }; } return o;
+}
+window.hairU0 = hairU;
+function setupHair(m, U = hairU){
   m.roughness = .7; m.color.setRGB(1,1,1);
   m.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, hairU);
+    Object.assign(sh.uniforms, U);
     sh.vertexShader = 'attribute vec3 aW;\nvarying vec3 vHW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vHW = aW;');
     sh.fragmentShader = 'varying vec3 vHW;\nuniform vec3 uManeC; uniform vec3 uTailC; uniform vec3 uPollC; uniform vec3 uTipC; uniform float uTipH;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
   float l = clamp(dot(diffuseColor.rgb, vec3(.333))*1.45, 0.0, 1.4);
@@ -1422,10 +1439,10 @@ function setupHair(m){
   };
   m.needsUpdate = true;
 }
-function setupEye(m){
+function setupEye(m, U = eyeU){
   m.roughness = .08;
   m.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, eyeU);
+    Object.assign(sh.uniforms, U);
     sh.vertexShader = 'attribute float aSide;\nvarying float vSide;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vSide = aSide;');
     sh.fragmentShader = 'varying float vSide;\nuniform float uBlue;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
   float l = dot(diffuseColor.rgb, vec3(.333));
@@ -1434,10 +1451,10 @@ function setupEye(m){
   };
   m.needsUpdate = true;
 }
-function setupCoat(m){
+function setupCoat(m, U = coatU){
   m.roughness = .55; m.metalness = 0;
   m.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, coatU);
+    Object.assign(sh.uniforms, U);
     sh.vertexShader = 'attribute vec3 aW;\nvarying vec3 vOP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vOP = aW;');
     sh.fragmentShader = `varying vec3 vOP;
 uniform vec3 uA; uniform vec3 uB; uniform vec3 uMane; uniform vec3 uWhite; uniform float uType; uniform float uPieT; uniform float uSeed;
@@ -1484,7 +1501,7 @@ uniform float uPointsH; uniform vec4 uSocks; uniform float uFace; uniform float 
   m.needsUpdate = true;
 }
 const lin = hex => new THREE.Color(hex).convertSRGBToLinear();
-function applyCoat(h){
+function applyCoat(h, coatU = window.coatU0, eyeU = window.eyeU0, hairU = window.hairU0){
   const c = h.coat;
   coatU.uType.value = c.blobs ? 3 : c.type==='pie' ? 1 : c.type==='leopard' ? 2 : 0;
   coatU.uBn.value = c.blobs ? c.blobs.length : 0;
@@ -2727,6 +2744,125 @@ function updateHud(){
   $('#speed').textContent = `${Math.round(Math.abs(S.v)*3.6)} km/h`;
 }
 
+
+/* ---------- Les autres chevaux du club, en liberté dans la promenade ---------- */
+const NPCS = { list:[], built:false };
+const NPC_FREQ = { Repos:0, Pas:.705, Trot:1.0, Galop_G:1.5, Galop_D:1.5 }, NPC_SPEED = { Pas:1.5, Trot:3.3, Galop_G:5.2, Galop_D:5.2 };
+function buildNPCs(){
+  if (NPCS.built || !model || !PACK.ready || !THREE.SkeletonUtils) return;
+  NPCS.built = true;
+  const r = rng(4242);
+  HORSES.forEach((h, idx) => {
+    const clone = THREE.SkeletonUtils.clone(model);
+    const U = { coat: cloneU(coatU0), hair: cloneU(hairU0), eye: cloneU(eyeU0) };
+    clone.traverse(o => {
+      if (!o.isMesh) return;
+      o.castShadow = false; o.frustumCulled = false;
+      const nm = o.material.name;
+      if (/Saddle/i.test(nm)){ o.visible = false; return; }          // chevaux en liberté : ni selle ni filet
+      const m = o.material.clone(); m.name = nm; o.material = m;
+      if (/Body/i.test(nm)) setupCoat(m, U.coat); else if (/Hair/i.test(nm)) setupHair(m, U.hair); else if (/Eye/i.test(nm)) setupEye(m, U.eye);
+    });
+    applyCoat(h, U.coat, U.eye, U.hair);
+    const B = {}; clone.traverse(o => { if (o.isBone) B[boneKey(o.name)] = o; });
+    const root = new THREE.Group(), bodyG = new THREE.Group(); root.add(bodyG); bodyG.add(clone); PROM.group.add(root);
+    // départ : un point libre au hasard, des deux côtés de la rivière
+    let x, z, k = 0; do { x = (r()-.5)*2*(PROM.HX-8); z = (r()-.5)*2*(PROM.HZ-6); k++; } while (k < 200 && (PROM.riverD(x, z) < 5 || PROM.OBST.some(([ox, oz, rr]) => Math.hypot(x-ox, z-oz) < rr+3) || Math.hypot(x - PROM.start[0], z - PROM.start[1]) < 12));
+    const n = { h, idx, root, body:bodyG, model:clone, B, x, z, y:PROM.walkY(x, z), yaw:r()*6.3, v:0, clip:'Repos', u:r(), prev:null, blend:1, state:'idle', timer:2 + r()*8, path:[], skip:0, rnd:rng(100+idx) };
+    root.position.set(x, n.y, z); root.rotation.y = n.yaw;
+    NPCS.list.push(n);
+  });
+}
+function npcPickTarget(n){
+  const r = n.rnd, mySide = PROM.side(n.x, n.z);
+  for (let k=0;k<60;k++){
+    const x = (r()-.5)*2*(PROM.HX-6), z = (r()-.5)*2*(PROM.HZ-5);
+    if (PROM.riverD(x, z) < 4 || PROM.OBST.some(([ox, oz, rr]) => Math.hypot(x-ox, z-oz) < rr+2.5)) continue;
+    if (Math.hypot(x - PROM.cliff[0], z - PROM.cliff[1]) < 22) continue;
+    const other = PROM.side(x, z) !== mySide;
+    if (other && r() > .35) continue;                                // de temps en temps seulement, on traverse… par le pont
+    if (other){ const [e0, e1] = PROM.bridgeEnds, near = PROM.side(...e0) === mySide ? [e0, e1] : [e1, e0]; n.path = [near[0], near[1], [x, z]]; }
+    else n.path = [[x, z]];
+    return true;
+  }
+  return false;
+}
+function npcSetClip(n, c){ if (c === n.clip) return; n.prev = n.pose; n.blend = 0; n.clip = c; if (c !== 'Repos' && n.u > 1) n.u %= 1; }
+function updateNPCs(dt){
+  if (!NPCS.built) return;
+  const cam = view==='ext' ? tpCam.position : rig.position;
+  for (const n of NPCS.list){
+    if (!n.root.visible) continue;
+    const r = n.rnd;
+    // --- décision
+    n.timer -= dt;
+    if (n.state === 'idle' && n.timer <= 0){
+      if (npcPickTarget(n)){ const g = r(); n.state = 'move'; n.gaitClip = g < .72 ? 'Pas' : g < .9 ? 'Trot' : 'Galop_G'; }
+      else n.timer = 3;
+    }
+    let want = 0;
+    // coincé (arbre, berge, autre cheval) : il renonce et choisit un autre coin
+    if (n.state === 'move'){
+      n.stuckT = (n.stuckT||0) + dt;
+      if (n.stuckT > 5){ if (n.sx !== undefined && Math.hypot(n.x - n.sx, n.z - n.sz) < 1.5){ n.path = []; n.state = 'idle'; n.timer = 1 + r()*3; n.yaw += Math.PI*(.5 + r()); } n.stuckT = 0; n.sx = n.x; n.sz = n.z; }
+    } else { n.stuckT = 0; n.sx = undefined; }
+    if (n.state === 'move' && n.path.length){
+      const [tx, tz] = n.path[0], dx = tx - n.x, dz = tz - n.z, dist = Math.hypot(dx, dz);
+      const onBr = PROM.onBridge(n.x, n.z) !== null || n.path.length > 1 && PROM.onBridge(tx, tz) !== null;
+      if (dist < (n.path.length > 1 ? 1.2 : 2.5)){ n.path.shift(); if (!n.path.length){ n.state = 'idle'; n.timer = 4 + r()*14; } }
+      else {
+        let hd = Math.atan2(-dx, -dz);
+        // évite les arbres et l'eau (sauf sur le pont), les autres chevaux et le cavalier
+        const [fx, fz] = fwd(n.yaw), ax = n.x + fx*3.5, az = n.z + fz*3.5;
+        let push = 0;
+        for (const [ox, oz, rr] of PROM.OBST){ const d = Math.hypot(ax-ox, az-oz); if (d < rr + 2){ push += Math.sign(fx*(oz-n.z) - fz*(ox-n.x)) || 1; } }
+        if (!onBr && PROM.riverD(ax, az) < 2 && n.path.length === 1) push += 2*(PROM.side(n.x, n.z));
+        for (const m of NPCS.list) if (m !== n && m.root.visible){ const d = Math.hypot(ax - m.x, az - m.z); if (d < 3) push += Math.sign(fx*(m.z-n.z) - fz*(m.x-n.x)) || 1; }
+        if (mode === 'promenade' && Math.hypot(ax - S.x, az - S.z) < 4) push += Math.sign(fx*(S.z-n.z) - fz*(S.x-n.x)) || 1;
+        hd -= push*.6;
+        let dy = Math.atan2(Math.sin(hd - n.yaw), Math.cos(hd - n.yaw));
+        const tr = n.gaitClip === 'Pas' ? 1.3 : 1.0;
+        n.yaw += clamp(dy, -tr*dt, tr*dt);
+        want = NPC_SPEED[n.gaitClip] * (Math.abs(dy) > 1.2 ? .4 : 1) * (onBr ? .6 : 1);
+        if (dist < 6 && n.path.length === 1) want = Math.min(want, 1.5);
+        if (n.gaitClip.startsWith('Galop')) n.gaitClip = dy > .05 ? 'Galop_G' : dy < -.05 ? 'Galop_D' : n.gaitClip;   // pied du côté où il tourne
+      }
+    }
+    n.v += clamp(want - n.v, -3*dt, 2*dt);
+    if (n.v > .05){
+      const [fx, fz] = fwd(n.yaw), nx = n.x + fx*n.v*dt, nz = n.z + fz*n.v*dt;
+      const ok = (PROM.onBridge(nx, nz) !== null || PROM.riverD(nx, nz) > .8) && Math.abs(nx) < PROM.HX-1 && Math.abs(nz) < PROM.HZ-1;
+      if (ok){ n.x = nx; n.z = nz; } else { n.yaw += 1.2*dt*(PROM.side(n.x, n.z)); n.v *= .5; }
+    }
+    for (const [ox, oz, rr] of PROM.OBST){ const dx = n.x-ox, dz = n.z-oz, d = Math.hypot(dx, dz), R2 = rr+.8; if (d < R2 && d > 1e-3){ n.x = ox + dx/d*R2; n.z = oz + dz/d*R2; } }
+    // --- allure affichée
+    const clip = n.v < .25 ? 'Repos' : n.v < 2.4 ? 'Pas' : n.v < 4.4 ? 'Trot' : (n.gaitClip && n.gaitClip.startsWith('Galop') ? n.gaitClip : 'Galop_G');
+    npcSetClip(n, clip);
+    const gy = PROM.walkY(n.x, n.z); n.y += (gy - n.y)*Math.min(1, dt*8);
+    n.root.position.set(n.x, n.y, n.z); n.root.rotation.y = n.yaw;
+    // --- animation (moins souvent pour les chevaux éloignés)
+    if (clip === 'Repos') n.u += dt / (window.PACK_ANIMS.clips.Repos.frames / 24);
+    else n.u += dt * NPC_FREQ[clip] * clamp(n.v / NPC_SPEED[clip], .6, 1.4);
+    n.blend = Math.min(1, n.blend + dt/.35);
+    const far = Math.hypot(cam.x - n.x, cam.z - n.z);
+    if (far > 120){ n.skip = 0; continue; }
+    if (far > 45 && (n.skip = (n.skip + 1) % 3) !== 0) continue;
+    const cur = packSample(clip, n.u);
+    n.pose = n.blend < 1 && n.prev ? packBlend(n.prev, cur, n.blend) : cur;
+    npcApply(n, n.pose);
+  }
+}
+function npcApply(n, pose){
+  const W = {};
+  for (const k of PACK.order){
+    const q = pose.q[k]; if (!q) continue; W[k] = q;
+    const pk = PACK.parentKey[k], pw = pk ? W[pk] : PACK.staticW[k]; if (!pw) continue;
+    const b = n.B[k]; if (b) b.quaternion.copy(pw.clone().invert().multiply(q));
+  }
+  const pb = n.B.pelvis;
+  if (pb && pose.p){ n.root.updateMatrixWorld(true); const local = pose.p.clone().applyMatrix4(n.body.matrixWorld); pb.parent.worldToLocal(local); pb.position.copy(local); }
+}
+function showNPCs(){ buildNPCs(); for (const n of NPCS.list) n.root.visible = n.h !== H; }
 /* =========================================================
    Boucle et navigation
    ========================================================= */
@@ -2742,7 +2878,7 @@ function restart(){
   $('#sheet').hidden = true;
 }
 function start(m){
-  mode = m; H = HORSES[selected]; setWorld(m);
+  mode = m; H = HORSES[selected]; setWorld(m); if (m === 'promenade') showNPCs();
   Sound.init(); if (Sound.ctx && Sound.ctx.state==='suspended') Sound.ctx.resume();
   restart();
   $('#menu').hidden = true;
@@ -2808,7 +2944,7 @@ function loop(ts){
   if (playing) drawMinimap();
   updateTpCam(dt);
   shadowSun.target.position.set(rig.position.x, rig.position.y, rig.position.z); shadowSun.position.set(rig.position.x + 3, rig.position.y + 14, rig.position.z + 2);
-  if (mode === 'promenade' && PROM.group.visible) PROM.animate(dt);
+  if (mode === 'promenade' && PROM.group.visible){ PROM.animate(dt); if (!NPCS.built) showNPCs(); updateNPCs(dt); }
   if (playing || $('#menu').hidden || (frameN++ % 20 === 0)) renderer.render(scene, view==='ext' ? tpCam : camera);
   requestAnimationFrame(loop);
 }
