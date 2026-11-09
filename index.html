@@ -977,6 +977,18 @@ const PROM = (() => {
   const inBox = (x, z) => Math.abs(x) < HX && Math.abs(z) < HZ;
   const inUnion = (x, z) => inBox(x, z) || inExt(x, z);
   function outsideD(x, z){ if (inUnion(x, z)) return 0; const ex = Math.max(0, Math.abs(x) - HX), ez = Math.max(0, Math.abs(z) - HZ); return Math.min(Math.hypot(ex, ez), extD(x, z)); }
+  // au-delà des limites, le décor prolonge celui du bord le plus proche (plage, forêt sombre…)
+  function nearestInside(x, z){
+    const bx = clamp(x, -HX, HX), bz = clamp(z, -HZ, HZ); let best = [bx, bz, Math.hypot(x-bx, z-bz), 0];
+    for (let i=0;i<EXT_OUTER;i++){ const a = EXT[i], b = EXT[i+1], dx = b[0]-a[0], dz = b[1]-a[1], t = clamp01(((x-a[0])*dx + (z-a[1])*dz)/(dx*dx+dz*dz)), px = a[0]+dx*t, pz = a[1]+dz*t, d = Math.hypot(x-px, z-pz);
+      if (d < best[2]) best = [px, pz, d, 1]; }
+    return best;
+  }
+  function outTheme(x, z){   // { sand, forest } entre 0 et 1, pour les points hors de la zone jouable
+    if (inUnion(x, z)) return { sand:0, forest:0, d:0 };
+    const [nx, nz, d, isExt] = nearestInside(x, z);
+    return { sand: isExt ? 0 : clamp01((lay('sand', nx, nz) - .25)*2), forest: isExt && forestD(nx, nz) < 3 ? 1 : 0, d };
+  }
   // champ de blé et forêt
   const [wx0, wz0] = NX(883, 622), [wx1, wz1] = NX(1222, 733);
   const inWheat = (x, z, m = 0) => x > wx0 - m && x < wx1 + m && z > wz0 - m && z < wz1 + m;
@@ -1023,8 +1035,9 @@ const PROM = (() => {
     const d = riverD(x, z); if (d < 5){ const k = clamp01(d/5); h = mixc(-1.6, h, k*k*(3-2*k)); }
     const l = lakeD(x, z); if (l < 0){ const k = clamp01(-l/5); h = mixc(h, LAKE_Y - .55, k*k*(3-2*k)); }       // lac : l'eau arrive aux genoux
     const w = caveWD(x, z); if (w < 2.5){ const k = clamp01(1 - w/2.5); h = mixc(h, -.85, k*k*(3-2*k)); }        // rivière souterraine, à hauteur de genou
-    const e = outsideD(x, z);
-    if (e > 0) h += Math.min(e, 160)*.12*(.6 + .8*fbm(pn, x/60+50, z/60+50, 4096, 3));
+    const e = outsideD(x, z), th = e > 0 ? outTheme(x, z) : null;
+    if (th && th.sand > 0) h = mixc(h, LAKE_Y + .3 + .5*fbm(pn, x/25+80, z/25+80, 4096, 3), th.sand);   // la plage continue, à peine bosselée de dunes
+    if (e > 0) h += (1 - .85*(th ? th.sand : 0) - .55*(th ? th.forest : 0)) * Math.min(e, 160)*.12*(.6 + .8*fbm(pn, x/60+50, z/60+50, 4096, 3));
     return h;
   }
   deckA = baseH(b0x, b0z); deckB = baseH(b1x, b1z);
@@ -1058,7 +1071,9 @@ const PROM = (() => {
       const fk = clamp01(-forestD(x, z)/4), tk = clamp01(1 - (trailDS(x, z) - 1)/2)*fk;                                // sol de forêt : humus sombre, sentier de terre
       r = mixc(r, .42, fk*.75); g = mixc(g, .4, fk*.75); b = mixc(b, .3, fk*.75); r = mixc(r, .62, tk); g = mixc(g, .5, tk); b = mixc(b, .38, tk);
       col[i*3] = r; col[i*3+1] = g; col[i*3+2] = b;
-      sa[i] = hole ? 0 : clamp01(lay('sand', x, z)*1.4 - .1);
+      const ot = outTheme(x, z);
+      sa[i] = hole && Math.abs(x) < HX+14 && Math.abs(z) < HZ+14 ? 0 : clamp01(Math.max(inUnion(x, z) ? lay('sand', x, z) : 0, ot.sand)*1.4 - .1);
+      if (ot.forest){ r = mixc(r, .42, .75); g = mixc(g, .4, .75); b = mixc(b, .3, .75); col[i*3] = r; col[i*3+1] = g; col[i*3+2] = b; }
     }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('aSand', new THREE.BufferAttribute(sa, 1)); geo.computeVertexNormals();
     const map = grassT.map.clone(), bump = grassT.bump.clone(), smap = sandT.map.clone(); for (const t of [map, bump, smap]){ t.needsUpdate = true; t.repeat.set(rep, rep*sz/sx); }
@@ -1320,6 +1335,19 @@ const PROM = (() => {
         const f = new THREE.Mesh(fg, frondMat); f.position.copy(top); f.rotation.y = i/9*Math.PI*2 + r()*.3; f.castShadow = true; pg.add(f); }
       pg.position.set(x, y0 - .1, z); group.add(pg); OBST.push([x, z, .5]);
     }
+    // la plage et ses palmiers continuent au-delà des limites
+    const extraP = [];
+    for (let k=0;k<6000 && extraP.length<40;k++){ const x = -HX - 70 + r()*(HX + 10 + 70), z = r() < .5 ? HZ - 60 + r()*130 : HZ + r()*70; if (inUnion(x, z)) continue; const ot = outTheme(x, z); if (ot.sand < .6 || ot.d > 75) continue;
+      if (extraP.some(([a, b]) => Math.hypot(a-x, b-z) < 7)) continue; extraP.push([x, z]); }
+    for (const [x, z] of extraP){
+      const y0 = groundH(x, z), H2 = 7 + r()*3, lean = (r()-.5)*.6, dir = r()*6.3, pg = new THREE.Group();
+      const pts = []; for (let i=0;i<=8;i++){ const t = i/8; pts.push(new THREE.Vector3(Math.sin(dir)*lean*H2*t*t, H2*t, Math.cos(dir)*lean*H2*t*t)); }
+      pg.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 12, .22, 7), pbMat));
+      for (let i=0;i<8;i++){ const fg = new THREE.PlaneGeometry(1.1, 4.2, 1, 6); fg.translate(0, 2.1, 0); const fpp = fg.attributes.position;
+        for (let k=0;k<fpp.count;k++){ const yy = fpp.getY(k); fpp.setZ(k, -.09*yy*yy); } fg.rotateX(-Math.PI/2 + .25);
+        const f = new THREE.Mesh(fg, frondMat); f.position.copy(pts[8]); f.rotation.y = i/8*Math.PI*2 + r()*.3; pg.add(f); }
+      pg.position.set(x, y0 - .1, z); group.add(pg);
+    }
   }
   // ---- limites naturelles : haies épaisses et rochers tout autour, forêt au-delà
   const [gx, gz] = P(14, 600);
@@ -1333,6 +1361,8 @@ const PROM = (() => {
     for (const [x, z, isExt] of perim){
       if (Math.hypot(x - gx, z - gz) < 4.5) continue;
       if (!isExt && inExt(x, z)) continue;              // la prairie s'ouvre sur la rallonge
+      if (lay('sand', clamp(x, -HX, HX), clamp(z, -HZ, HZ)) > .3) continue;   // la plage se prolonge sans haie
+      if (isExt && forestD(x, z) < 6) continue;                                // la forêt sombre se prolonge sans haie
       if (riverD(x, z) < 1.5){ edgeR.push([x, z, 1.4 + r(), .8 + r()*.6, 1.4 + r(), -.3]); continue; }   // la rivière sort du plan : des rochers dans le lit
       if (caveD(x, z) < 2) continue;
       const jx = (r()-.5)*1.4, jz = (r()-.5)*1.4;
@@ -1342,7 +1372,7 @@ const PROM = (() => {
     }
     plant(edgeB, crown(41, 4), leafMat, true, false); rocks(edgeR, false);
     const RING = [];
-    for (let i=0;i<1100;i++){ const x = (r()-.5)*2*(HX+100), z = (r()-.5)*2*(HZ+100); if (Math.abs(x) < HX+5 && Math.abs(z) < HZ+5) continue; if (riverD(x, z) < 3) continue; if (caveD(Math.min(x, HX-2), Math.max(z, -HZ+2)) < 8) continue; if (inExt(x, z) || extD(x, z) < 5) continue; RING.push([x, z, 2.6 + r()*2]); }
+    for (let i=0;i<1100;i++){ const x = (r()-.5)*2*(HX+100), z = (r()-.5)*2*(HZ+100); if (Math.abs(x) < HX+5 && Math.abs(z) < HZ+5) continue; if (riverD(x, z) < 3) continue; if (caveD(Math.min(x, HX-2), Math.max(z, -HZ+2)) < 8) continue; if (inExt(x, z) || extD(x, z) < 5) continue; { const ot = outTheme(x, z); if (ot.sand > .3 || ot.forest) continue; } RING.push([x, z, 2.6 + r()*2]); }
     plant(RING, crown(13, 4), leafMat, false, false);
     // rochers épars dans les collines
     const hr = []; for (let i=0;i<400 && hr.length<40;i++){ const x = (r()-.5)*2*(HX-6), z = (r()-.5)*2*(HZ-6); if (lay('hill', x, z) < .45 || riverD(x, z) < 3) continue; const s = .7 + r()*1.4; hr.push([x, z, s*1.3, s*.8, s*1.1]); OBST.push([x, z, s*1.2]); }
@@ -1429,6 +1459,12 @@ const PROM = (() => {
     pts.forEach(([x, z], i) => { const s = 1.08 + ER()*.18;   // les épis arrivent à l'épaule du cheval (≈1,5 m)
       sv.set(.9 + ER()*.3, s, .9 + ER()*.3); q.identity(); pv.set(x, groundH(x, z) - .05, z); m4.compose(pv, q, sv); im.setMatrixAt(i, m4); cc.setHSL(.11 + (ER()-.5)*.02, .55 + ER()*.15, .52 + ER()*.1); im.setColorAt(i, cc); });
     im.frustumCulled = false; group.add(im);
+    // d'autres champs de blé au-delà de la limite est, sur les coteaux
+    const out = [];
+    for (let x = wx1 - 10; x < wx1 + 95; x += .75) for (let z = wz0 - 25; z < wz1 + 30; z += .75){ const jx = x + (ER()-.5)*.5, jz = z + (ER()-.5)*.5; if (inUnion(jx, jz) || outsideD(jx, jz) < 3) continue; out.push([jx, jz]); }
+    const im2 = new THREE.InstancedMesh(geo, mat, out.length);
+    out.forEach(([x, z], i) => { const sc = 1.05 + ER()*.2; sv.set(1.1, sc, 1.1); q.identity(); pv.set(x, groundH(x, z) - .05, z); m4.compose(pv, q, sv); im2.setMatrixAt(i, m4); cc.setHSL(.11 + (ER()-.5)*.02, .55 + ER()*.15, .5 + ER()*.1); im2.setColorAt(i, cc); });
+    im2.frustumCulled = false; group.add(im2);
   }
   {
     // la forêt : épicéas et feuillus serrés, très sombres, fougères, troncs tombés, rochers moussus
@@ -1473,6 +1509,23 @@ const PROM = (() => {
     const mistT = canvasTex(64, 64, (x, w, h) => { const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(190,205,195,.5)'); g.addColorStop(1, 'rgba(190,205,195,0)'); x.fillStyle = g; x.fillRect(0, 0, w, h); });
     const mistMat = new THREE.SpriteMaterial({map:mistT, transparent:true, depthWrite:false, opacity:.35, fog:true});
     for (let k=0, n=0;k<800 && n<70;k++){ const x = fcx + (ER()-.5)*2*frx, z = fcz + (ER()-.5)*2*frz; if (forestD(x, z) > -2) continue; const s = new THREE.Sprite(mistMat); const sc = 6 + ER()*6; s.scale.set(sc, sc*.4, 1); s.position.set(x, groundH(x, z) + .6 + ER()*1.2, z); s.userData.ph = ER()*6.3; MIST.push(s); group.add(s); n++; }
+    // la forêt sombre continue au-delà des limites, aussi serrée et noire
+    {
+      const out = [];
+      for (let x = fcx - frx - 80; x < fcx + frx + 80; x += 4.2) for (let z = fcz - frz - 30; z < fcz + frz + 80; z += 4.2){
+        const jx = x + (ER()-.5)*2.6, jz = z + (ER()-.5)*2.6; if (inUnion(jx, jz)) continue; const ot = outTheme(jx, jz); if (!ot.forest || ot.d > 85) continue; out.push([jx, jz]); }
+      const om = new THREE.InstancedMesh(conGeo, needleMat, out.length), ot2 = new THREE.InstancedMesh(trunkGeo, trunkMat, out.length);
+      out.forEach(([x, z], i) => { const s = 1.6 + ER()*1.2, h = 1.9 + ER()*.9, lift = 4 + ER()*2, y0 = groundH(x, z); q.setFromAxisAngle(up, ER()*6.3);
+        sv.set(s, s*h, s); pv.set(x, y0 + lift, z); m4.compose(pv, q, sv); om.setMatrixAt(i, m4); cc.setHSL(.36 + (ER()-.5)*.04, .22 + ER()*.12, .22 + ER()*.1); om.setColorAt(i, cc);
+        sv.set(.6, lift + 2 + s*h*2, .6); pv.set(x, y0 - .1, z); m4.compose(pv, q, sv); ot2.setMatrixAt(i, m4); });
+      group.add(om, ot2);
+      const of = new THREE.InstancedMesh(fernGeo, ferns.material, 1500); let n2 = 0;
+      for (let k=0;k<8000 && n2<1500;k++){ const x = fcx + (ER()-.5)*2*(frx + 70), z = fcz - frz + ER()*(2*frz + 90); if (inUnion(x, z)) continue; const ot = outTheme(x, z); if (!ot.forest || ot.d > 40) continue;
+        const sc = .6 + ER()*.9; q.setFromAxisAngle(up, ER()*6.3); sv.set(sc, sc, sc); pv.set(x, groundH(x, z) - .05, z); m4.compose(pv, q, sv); of.setMatrixAt(n2, m4); cc.setHSL(.27, .3, .26 + ER()*.12); of.setColorAt(n2++, cc); }
+      if (!of.instanceColor) of.setColorAt(0, cc); of.count = n2; group.add(of);
+      for (let k=0, n3=0;k<600 && n3<40;k++){ const x = fcx + (ER()-.5)*2*(frx + 60), z = fcz - frz + ER()*(2*frz + 70); if (inUnion(x, z)) continue; const ot = outTheme(x, z); if (!ot.forest || ot.d > 50) continue;
+        const sp = new THREE.Sprite(mistMat); const sc = 7 + ER()*7; sp.scale.set(sc, sc*.4, 1); sp.position.set(x, groundH(x, z) + .8 + ER(), z); sp.userData.ph = ER()*6.3; MIST.push(sp); group.add(sp); n3++; }
+    }
     // arbres isolés du plan, dans la rallonge
     plant(EXT_TREES.map(([x, z]) => [x, z, 3 + ER()*1.2]), crown(5, 6), leafMat, false).forEach((rad, i) => OBST.push([EXT_TREES[i][0], EXT_TREES[i][1], rad]));
   }
