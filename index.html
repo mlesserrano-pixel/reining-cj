@@ -792,13 +792,11 @@ const woodWall = new THREE.MeshStandardMaterial({map:woodTex.map, bumpMap:woodTe
     const top = new THREE.Mesh(new THREE.BoxGeometry(.8,.06,.6), ladderMat); top.position.y = 1.9; lg.add(top);
     lg.position.set(x, .1, z); lg.rotation.y = x<0 ? Math.PI/2 : -Math.PI/2; scene.add(lg);
   }
-  // marqueurs de pattern : plaques sur le pare-bottes et cônes
+  // marqueurs de pattern : plaques sur le pare-bottes (pas de cônes sur la piste)
   const mk = (z, color) => {
     for (const sx of [-1,1]) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(.06,.55,.55), new THREE.MeshLambertMaterial({color}));
       m.position.set(sx*(fx-.1), 1.0, z); scene.add(m);
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(.24,.6,12), new THREE.MeshLambertMaterial({color}));
-      cone.position.set(sx*(fx-0.9), .3, z); scene.add(cone);
     }
   };
   mk(-MARK, '#e0702e'); mk(MARK, '#e0702e'); mk(0, '#3e7fb3');
