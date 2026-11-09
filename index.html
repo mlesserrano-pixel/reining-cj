@@ -520,7 +520,7 @@ renderer.toneMappingExposure = 1.05;
 stage.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const SKY_H = new THREE.Color('#e9c99a');
-scene.fog = new THREE.Fog(SKY_H, 70, 330);
+scene.fog = new THREE.Fog(SKY_H, 90, 560);
 const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 900);            // vue depuis la selle
 const tpCam = new THREE.PerspectiveCamera(52, 1, 0.1, 900); scene.add(tpCam);   // vue extérieure
 let view = store.get('cj-view') || 'ext';
@@ -535,16 +535,34 @@ window.addEventListener('resize', resize);
 {
   const g = new THREE.SphereGeometry(600, 32, 16);
   const m = new THREE.ShaderMaterial({side:THREE.BackSide, depthWrite:false, fog:false,
-    uniforms:{top:{value:new THREE.Color('#6f93b8')}, mid:{value:new THREE.Color('#d9c3a2')}, bot:{value:SKY_H}},
+    uniforms:{top:{value:new THREE.Color('#5f8fc4')}, mid:{value:new THREE.Color('#d8cdb8')}, bot:{value:SKY_H}},
     vertexShader:`varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
     fragmentShader:`uniform vec3 top; uniform vec3 mid; uniform vec3 bot; varying vec3 vP;
-      void main(){ float y = vP.y; vec3 c = y>0.08 ? mix(mid, top, smoothstep(0.08,0.6,y)) : mix(bot, mid, smoothstep(-0.05,0.08,y)); gl_FragColor = vec4(c,1.0);}`});
+      float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+      float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h(i), h(i+vec2(1,0)), f.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), f.x), f.y); }
+      float fb(vec2 p){ float s = 0.0, a = .5; for (int i=0;i<6;i++){ s += a*n(p); p = p*2.03 + 17.0; a *= .5; } return s; }
+      void main(){
+        float y = vP.y; vec3 c = y>0.08 ? mix(mid, top, smoothstep(0.08,0.6,y)) : mix(bot, mid, smoothstep(-0.05,0.08,y));
+        if (y > 0.0){
+          vec2 uv = vP.xz / (y + .12) * 1.6;
+          float cl = fb(uv + vec2(3.0, 7.0)), sh = fb(uv*1.03 + vec2(3.15, 7.1));
+          float cov = smoothstep(.5, .78, cl) * smoothstep(0.0, .18, y);
+          vec3 cloud = mix(vec3(1.0, .97, .93), vec3(.72, .74, .8), clamp((sh - cl)*6.0 + .35, 0.0, 1.0));
+          c = mix(c, cloud, cov*.9);
+        }
+        gl_FragColor = vec4(c,1.0);
+      }`});
   scene.add(new THREE.Mesh(g, m));
 }
-scene.add(new THREE.HemisphereLight(0xfff1dc, 0x6b5638, 0.72));
+scene.add(new THREE.HemisphereLight(0xfff1dc, 0x6b5638, 0.66));
 const rim = new THREE.DirectionalLight(0xbfd4ff, .45); rim.position.set(50, 30, 60); scene.add(rim);
-const sun = new THREE.DirectionalLight(0xfff0d8, .7); sun.position.set(-20, 60, -10); scene.add(sun);
+const sun = new THREE.DirectionalLight(0xfff0d8, .45); sun.position.set(-20, 60, -10); scene.add(sun);
 const fill = new THREE.DirectionalLight(0xffe2c0, .35); fill.position.set(25, 40, 30); scene.add(fill);
+// ombre portée du cheval sur le sable : une lumière du plafond qui suit le cheval
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const shadowSun = new THREE.DirectionalLight(0xfff3df, .62); shadowSun.castShadow = true;
+shadowSun.shadow.mapSize.set(1024, 1024); Object.assign(shadowSun.shadow.camera, {left:-4.5, right:4.5, top:4.5, bottom:-4.5, near:1, far:30});
+shadowSun.shadow.bias = -.0006; shadowSun.shadow.radius = 4; scene.add(shadowSun, shadowSun.target);
 
 function canvasTex(w, h, draw, repeat){
   const c = document.createElement('canvas'); c.width=w; c.height=h; draw(c.getContext('2d'), w, h);
@@ -552,31 +570,131 @@ function canvasTex(w, h, draw, repeat){
   if (repeat){ t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
   t.anisotropy = 4; return t;
 }
-// Herbe
+// ---------- Textures procédurales réalistes : bruit périodique (aucune couture quand la texture se répète)
+function makeNoise(seed){
+  const r = rng(seed), P = new Float32Array(4096); for (let i=0;i<4096;i++) P[i] = r();
+  const h = (x,y) => P[(Math.imul(x, 73856093) ^ Math.imul(y, 19349663)) & 4095];
+  return (x, y, per) => {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x-xi, yf = y-yi, u = xf*xf*(3-2*xf), v = yf*yf*(3-2*yf);
+    const x0 = ((xi%per)+per)%per, x1 = (x0+1)%per, y0 = ((yi%per)+per)%per, y1 = (y0+1)%per;
+    const a = h(x0,y0), b = h(x1,y0), c = h(x0,y1), d = h(x1,y1);
+    return a + (b-a)*u + (c-a)*v + (a-b-c+d)*u*v;
+  };
+}
+function fbm(n, x, y, per, oct){ let s = 0, amp = .5, f = 1, nm = 0; for (let o=0;o<oct;o++){ s += amp*n(x*f, y*f, per*f); nm += amp; amp *= .5; f *= 2; } return s/nm; }
+const MAX_ANISO = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+// fn(u, v, out) remplit out = [r, g, b, hauteur 0..1] ; renvoie la texture de couleur et la carte de relief
+function pixelTex(w, h, fn, repeat, post){
+  const mkc = () => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  const c = mkc(), b = mkc(), x = c.getContext('2d'), xb = b.getContext('2d');
+  const img = x.createImageData(w, h), ib = xb.createImageData(w, h), out = [0,0,0,0];
+  for (let j=0;j<h;j++) for (let i=0;i<w;i++){
+    fn(i/w, j/h, out); const k = (j*w+i)*4;
+    img.data[k] = out[0]; img.data[k+1] = out[1]; img.data[k+2] = out[2]; img.data[k+3] = 255;
+    ib.data[k] = ib.data[k+1] = ib.data[k+2] = Math.max(0, Math.min(255, out[3]*255)); ib.data[k+3] = 255;
+  }
+  x.putImageData(img, 0, 0); xb.putImageData(ib, 0, 0);
+  if (post) post(x, xb, w, h);
+  const mk = (cv, srgb) => { const t = new THREE.CanvasTexture(cv); if (srgb) t.encoding = THREE.sRGBEncoding;
+    if (repeat){ t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); } t.anisotropy = MAX_ANISO; return t; };
+  return { map: mk(c, true), bump: mk(b, false) };
+}
+const clamp01 = v => v<0 ? 0 : v>1 ? 1 : v, mixc = (a, b, t) => a + (b-a)*t;
+// relief du terrain extérieur : plat autour du manège, collines au loin
+const TN = makeNoise(77);
+function terrainH(x, z){
+  const r = Math.hypot(x, z), k = clamp01((r - 175) / 230);
+  return k*k*(3-2*k) * (8 + 70*fbm(TN, x/140 + 50, z/140 + 50, 4096, 4)) - .03;
+}
+// Herbe : prairie avec touffes, zones plus sèches, et collines qui ferment l'horizon
 {
-  const tex = canvasTex(256,256,(x,w,h)=>{x.fillStyle='#7d8a4e';x.fillRect(0,0,w,h);const r=rng(7);
-    for(let i=0;i<5000;i++){const v=r();x.fillStyle=`rgba(${60+v*50|0},${80+v*40|0},${30+v*20|0},.35)`;x.fillRect(r()*w,r()*h,1+r()*2,1+r()*3)}},[60,60]);
-  const g = new THREE.Mesh(new THREE.PlaneGeometry(900,900), new THREE.MeshLambertMaterial({map:tex}));
-  g.rotation.x = -Math.PI/2; scene.add(g);
+  const gn = makeNoise(7);
+  const grass = pixelTex(512, 512, (u, v, o) => {
+    const blade = gn(u*256, v*96, 256), fine = gn(u*512, v*512, 512), clump = fbm(gn, u*8, v*8, 8, 4);
+    const dry = .25;   // les zones sèches viennent des couleurs du terrain, pas de la texture (sinon on voit la répétition)
+    const l = .58 + .22*(clump-.5) + .35*(blade-.5) + .22*(fine-.5);
+    o[0] = (mixc(62, 128, dry) * l*1.25) | 0; o[1] = (mixc(96, 120, dry) * l*1.25) | 0; o[2] = (mixc(34, 58, dry) * l*1.15) | 0;
+    o[3] = .5 + .35*(blade-.5) + .3*(clump-.5);
+  }, [1, 1]);
+  grass.map.repeat.set(150, 150); grass.bump.repeat.set(150, 150);
+  const S = 1400, SEG = 180, geo = new THREE.PlaneGeometry(S, S, SEG, SEG);
+  const pos = geo.attributes.position, col = new Float32Array(pos.count*3);
+  for (let i=0;i<pos.count;i++){
+    const x = pos.getX(i), z = -pos.getY(i), y = terrainH(x, z); pos.setZ(i, y);
+    const m = fbm(TN, x/28, z/28, 4096, 4), hi = clamp01(y/60);
+    const dr = clamp01((fbm(TN, x/70+300, z/70+300, 4096, 3) - .5)*3);
+    col[i*3] = .84 + .35*(m-.5) + .1*hi + .3*dr; col[i*3+1] = .9 + .28*(m-.5) - .04*hi + .05*dr; col[i*3+2] = .8 + .2*(m-.5) + .12*hi + .05*dr;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
+  const g = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({map:grass.map, bumpMap:grass.bump, bumpScale:.04, roughness:.95, metalness:0, vertexColors:true}));
+  g.rotation.x = -Math.PI/2; g.receiveShadow = true; scene.add(g);
 }
 // Sable de la carrière
 const SAND_W = W+0.4, SAND_L = L+0.4;
 {
-  const tex = canvasTex(512,512,(x,w,h)=>{x.fillStyle='#b5713f';x.fillRect(0,0,w,h);const r=rng(11);
-    for(let i=0;i<26000;i++){const v=r();x.fillStyle=`rgba(${150+v*60|0},${90+v*50|0},${50+v*35|0},${.25+r()*.3})`;x.fillRect(r()*w,r()*h,1+r()*1.5,1+r()*1.5)}
-    for(let i=0;i<260;i++){const cx=r()*w, cy=r()*h; x.fillStyle='rgba(110,65,35,.28)'; x.beginPath(); x.ellipse(cx,cy,3+r()*2,4+r()*2,r()*3,0,7); x.fill(); x.fillStyle='rgba(235,190,150,.25)'; x.beginPath(); x.ellipse(cx+2,cy+2,3,4,0,0,7); x.fill();}
-    x.strokeStyle='rgba(120,90,55,.18)';x.lineWidth=2;for(let i=0;i<60;i++){x.beginPath();const y=r()*h;x.moveTo(0,y);x.bezierCurveTo(w*.3,y+r()*20-10,w*.6,y+r()*20-10,w,y);x.stroke()}},[6,14]);
-  const s = new THREE.Mesh(new THREE.PlaneGeometry(SAND_W*2, SAND_L*2), new THREE.MeshLambertMaterial({map:tex, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2}));
-  s.rotation.x = -Math.PI/2; s.position.y = 0.025; scene.add(s);
+  // sable hersé : grain fin, sillons de herse dans la longueur, zones tassées, traces de sabots
+  const sn = makeNoise(11);
+  const sand = pixelTex(1024, 1024, (u, v, o) => {
+    const grain = sn(u*1024, v*1024, 1024), grain2 = sn(u*300, v*300, 300), mid = fbm(sn, u*12, v*12, 12, 4), big = fbm(sn, u*3+5, v*3+5, 3, 3);
+    const warp = (fbm(sn, u*4+20, v*4+20, 4, 3) - .5) * 5;
+    const rake = Math.pow(.5 + .5*Math.sin((u*150 + warp) * Math.PI*2), 2) * (.55 + .45*fbm(sn, u*6+60, v*2+60, 6, 3));
+    const packed = clamp01((big - .5)*2.5 + .5);
+    const l = .9 + .22*(mid-.5) + .16*(grain-.5) + .1*(grain2-.5) - .045*rake*(1-packed*.6) - .06*packed;
+    o[0] = (196*l) | 0; o[1] = (140*l) | 0; o[2] = (92*l) | 0;
+    o[3] = .55 + .3*(mid-.5) + .1*(grain-.5) + .1*(1-rake)*(1-packed*.7);
+  }, [3, 7], (x, xb, w, h) => {
+    const r = rng(12);
+    for (let i=0;i<180;i++){   // empreintes de sabots, en suites de foulées
+      let px = r()*w, py = r()*h; const dir = r()*Math.PI*2, n = 3 + (r()*5|0);
+      for (let k=0;k<n;k++){
+        for (const [ox, oy] of [[0,0],[w,0],[-w,0],[0,h],[0,-h]]){
+          const cx = px+ox, cy = py+oy;
+          x.save(); x.translate(cx, cy); x.rotate(dir); x.fillStyle = 'rgba(95,58,30,.22)'; x.beginPath(); x.ellipse(0, 0, 5, 6.5, 0, 0, 7); x.fill();
+          x.fillStyle = 'rgba(240,200,160,.18)'; x.beginPath(); x.ellipse(1.5, 2, 5, 6.5, 0, 0, 7); x.fill(); x.restore();
+          xb.save(); xb.translate(cx, cy); xb.rotate(dir); xb.fillStyle = 'rgba(0,0,0,.35)'; xb.beginPath(); xb.ellipse(0, 0, 4.5, 6, 0, 0, 7); xb.fill(); xb.restore();
+        }
+        px = (px + Math.cos(dir)*22 + w) % w; py = (py + Math.sin(dir)*22 + h) % h;
+      }
+    }
+  });
+  // la piste est légèrement creusée au milieu et le sable remonte le long du pare-bottes ; tons plus sombres là où on passe
+  const SX = 70, SZ = 160, sg = new THREE.PlaneGeometry(SAND_W*2, SAND_L*2, SX, SZ), sp = sg.attributes.position, sc = new Float32Array(sp.count*3);
+  for (let i=0;i<sp.count;i++){
+    const x = sp.getX(i), z = -sp.getY(i);
+    const de = Math.min(SAND_W - Math.abs(x), SAND_L - Math.abs(z));
+    const berm = de < 1.1 ? .14 * Math.pow(1 - de/1.1, 1.6) : 0;
+    sp.setZ(i, berm + .012*(fbm(sn, x/3+40, z/3+40, 4096, 2)-.5));
+    const track = Math.exp(-Math.pow((SAND_W - Math.abs(x) - 2.2)/1.6, 2)) * .1;   // piste le long du mur
+    const m = fbm(sn, x/9+90, z/9+90, 4096, 3);
+    const c = 1 - track - .1*(berm/.14) + .14*(m-.5);
+    sc[i*3] = c; sc[i*3+1] = c*.985; sc[i*3+2] = c*.97;
+  }
+  sg.setAttribute('color', new THREE.BufferAttribute(sc, 3)); sg.computeVertexNormals();
+  const s = new THREE.Mesh(sg, new THREE.MeshStandardMaterial({map:sand.map, bumpMap:sand.bump, bumpScale:.03, roughness:1, metalness:0, vertexColors:true, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2}));
+  s.rotation.x = -Math.PI/2; s.position.y = 0.025; s.receiveShadow = true; scene.add(s);
 }
 // Manège couvert (d'après les photos du manège du club)
 const AISLE = 4.6, COLX = W + 0.4 + AISLE, EAVE = 6.2, RIDGE = 10.4, BAY = 8;
-const steel = new THREE.MeshLambertMaterial({color:'#2f3236'});
-const woodWall = new THREE.MeshLambertMaterial({map:canvasTex(512,128,(x,w,h)=>{
-  x.fillStyle='#b98a57';x.fillRect(0,0,w,h);const r=rng(5);
-  for(let i=0;i<h;i+=16){x.fillStyle=`rgba(90,55,25,${.15+r()*.15})`;x.fillRect(0,i,w,2);}
-  for(let i=0;i<1400;i++){x.fillStyle=`rgba(${120+r()*60|0},${80+r()*40|0},${40+r()*20|0},.25)`;x.fillRect(r()*w,r()*h,4+r()*30,1);}
-},[10,1])});
+const steel = new THREE.MeshStandardMaterial({color:'#3a3e44', metalness:.35, roughness:.55});
+// planches de pin traité : veinage, nœuds, teinte propre à chaque planche, joints sombres
+function plankTex(w, h, boards, seed, base, repeat, vertical){
+  const n = makeNoise(seed), r = rng(seed+1), tone = Array.from({length:boards}, () => .8 + r()*.32), off = Array.from({length:boards}, () => r()*50);
+  const knots = Array.from({length:boards*3}, () => [r(), r()]);
+  return pixelTex(w, h, (u, v, o) => {
+    const a = vertical ? u : v, b = vertical ? v : u;
+    const bi = Math.min(boards-1, Math.floor(a*boards)), t = a*boards - bi;
+    const along = b*8 + off[bi];
+    const warp = fbm(n, along*.6, t*2 + bi*7, 4096, 3);
+    const grain = .5 + .5*Math.sin((t*7 + warp*6) * Math.PI*2), fine = n(along*40, t*60 + bi*13, 4096);
+    let kn = 0; for (let k=0;k<3;k++){ const [kb, kt] = knots[bi*3+k]; const dx = (b - kb)*w/h*boards*1.2, dy = (t - kt)*1.6; const d = dx*dx*4 + dy*dy*30; kn = Math.max(kn, Math.exp(-d*40)); }
+    const gap = t < .035 || t > .965 ? .35 : 1;
+    const l = tone[bi] * (.82 + .14*grain + .08*(fine-.5) - .3*kn) * gap;
+    o[0] = base[0]*l | 0; o[1] = base[1]*l | 0; o[2] = base[2]*l | 0;
+    o[3] = gap < 1 ? .1 : .6 + .1*grain - .2*kn;
+  }, repeat);
+}
+const woodTex = plankTex(1024, 256, 6, 5, [190, 140, 92], [10, 1]);
+const woodWall = new THREE.MeshStandardMaterial({map:woodTex.map, bumpMap:woodTex.bump, bumpScale:.012, roughness:.82, metalness:0});
 {
   const fx = W+0.35, fz = L+0.35, kh = 1.35;
   // pare-bottes en bois tout autour de la carrière
@@ -588,7 +706,14 @@ const woodWall = new THREE.MeshLambertMaterial({map:canvasTex(512,128,(x,w,h)=>{
   for (const sx of [-1,1]){ const c = new THREE.Mesh(new THREE.BoxGeometry(.22,.06,fz*2+.3), cap); c.position.set(sx*fx, kh+.03, 0); scene.add(c); }
   for (const sz of [-1,1]){ const c = new THREE.Mesh(new THREE.BoxGeometry(fx*2+.3,.06,.22), cap); c.position.set(0, kh+.03, sz*fz); scene.add(c); }
   // allées en béton et tribunes latérales
-  const conc = new THREE.MeshLambertMaterial({color:'#9c968c'});
+  const cn = makeNoise(31);
+  const concT = pixelTex(512, 512, (u, v, o) => {
+    const m = fbm(cn, u*6, v*6, 6, 4), g = cn(u*512, v*512, 512), st = fbm(cn, u*2+7, v*2+7, 2, 3);
+    const joint = (u < .006 || v < .006) ? .6 : 1;
+    const l = (.86 + .18*(m-.5) + .1*(g-.5) - .12*clamp01((st-.55)*4)) * joint;
+    o[0] = 160*l | 0; o[1] = 155*l | 0; o[2] = 146*l | 0; o[3] = joint < 1 ? .2 : .55 + .15*(g-.5);
+  }, [6, 30]);
+  const conc = new THREE.MeshStandardMaterial({map:concT.map, bumpMap:concT.bump, bumpScale:.01, roughness:.92, metalness:0});
   for (const sx of [-1,1]){ const a = new THREE.Mesh(new THREE.BoxGeometry(AISLE+1, .1, fz*2+8), conc); a.position.set(sx*(fx+AISLE/2+.4), .05, 0); scene.add(a); }
   for (const sz of [-1,1]){ const a = new THREE.Mesh(new THREE.BoxGeometry(COLX*2+1, .1, 4), conc); a.position.set(0, .05, sz*(fz+2.1)); scene.add(a); }
   // poteaux, fermes du toit en acier
@@ -605,18 +730,24 @@ const woodWall = new THREE.MeshLambertMaterial({map:canvasTex(512,128,(x,w,h)=>{
     }
   }
   // plafond : lames de bois et bandes lumineuses
-  const ceilTex = canvasTex(256,512,(x,w,h)=>{
-    x.fillStyle='#9b7146';x.fillRect(0,0,w,h);const r=rng(9);
-    for(let i=0;i<h;i+=10){x.fillStyle=`rgba(60,35,15,${.25+r()*.2})`;x.fillRect(0,i,w,2);}
-    x.fillStyle='rgba(255,250,236,1)';x.fillRect(w*.46,0,w*.08,h);
-  },[1, Math.round(fz/4)]);
-  const ceilMat = new THREE.MeshBasicMaterial({map:ceilTex, side:THREE.DoubleSide, color:new THREE.Color(.95,.9,.85)});
+  const ceilT = plankTex(256, 512, 40, 9, [168, 120, 76], [1, Math.round(fz/4)]);
+  { const c = ceilT.map.image, x = c.getContext('2d');   // bande lumineuse en polycarbonate au faîtage de chaque pan
+    const g = x.createLinearGradient(c.width*.43, 0, c.width*.57, 0); g.addColorStop(0, 'rgba(255,250,236,0)'); g.addColorStop(.25, 'rgba(255,251,240,1)'); g.addColorStop(.75, 'rgba(255,251,240,1)'); g.addColorStop(1, 'rgba(255,250,236,0)');
+    x.fillStyle = g; x.fillRect(c.width*.43, 0, c.width*.14, c.height); for (let y=0;y<c.height;y+=32){ x.fillStyle = 'rgba(120,110,95,.35)'; x.fillRect(c.width*.45, y, c.width*.1, 2); } ceilT.map.needsUpdate = true; }
+  const ceilMat = new THREE.MeshBasicMaterial({map:ceilT.map, side:THREE.DoubleSide, color:new THREE.Color(.93,.88,.83)});
   for (const sx of [-1,1]){
     const g = new THREE.Group(); g.position.set(sx*COLX/2, (EAVE+RIDGE)/2 + .28, 0); g.rotation.z = -sx*beamAng; scene.add(g);
     const p = new THREE.Mesh(new THREE.PlaneGeometry(beamLen+.6, fz*2+8.4), ceilMat); p.rotation.x = -Math.PI/2; g.add(p);
   }
   // pignons : bardage métallique, grande verrière, portail en bois
-  const clad = new THREE.MeshLambertMaterial({map:canvasTex(256,256,(x,w,h)=>{x.fillStyle='#b9bcbf';x.fillRect(0,0,w,h);for(let i=0;i<w;i+=8){x.fillStyle='rgba(60,65,70,.18)';x.fillRect(i,0,2,h);}},[6,2]), side:THREE.DoubleSide});
+  const kn = makeNoise(41);
+  const cladT = pixelTex(512, 512, (u, v, o) => {
+    const rib = .5 + .5*Math.cos(u*32*Math.PI*2), sharp = Math.pow(rib, 2.5);
+    const streak = fbm(kn, u*48, v*3, 48, 4), dirt = clamp01((fbm(kn, u*6+3, v*4+3, 6, 3) - .5)*2.5 + (1-v)*.25);
+    const l = .78 + .2*sharp - .1*(streak-.5) - .14*dirt;
+    o[0] = 186*l | 0; o[1] = 190*l | 0; o[2] = 192*l | 0; o[3] = rib;
+  }, [6, 2]);
+  const clad = new THREE.MeshStandardMaterial({map:cladT.map, bumpMap:cladT.bump, bumpScale:.03, roughness:.55, metalness:.25, side:THREE.DoubleSide});
   const glass = new THREE.MeshBasicMaterial({color:'#e9efe9'});
   for (const sz of [-1,1]){
     const zw = sz*(fz+4.2);
@@ -624,7 +755,7 @@ const woodWall = new THREE.MeshLambertMaterial({map:canvasTex(512,128,(x,w,h)=>{
     const g = new THREE.Mesh(new THREE.ShapeGeometry(shape), clad); g.position.set(0,0,zw); scene.add(g);
     const win = new THREE.Mesh(new THREE.PlaneGeometry(COLX*1.3, 2.6), glass); win.position.set(0, EAVE-.3, zw - sz*.05); win.rotation.y = sz>0 ? Math.PI : 0; scene.add(win);
     const lower = new THREE.Mesh(new THREE.BoxGeometry(COLX*2, 2.6, .15), woodWall); lower.position.set(0, 1.3, zw - sz*.1); scene.add(lower);
-    const gate = new THREE.Mesh(new THREE.PlaneGeometry(4.5, 2.4), new THREE.MeshLambertMaterial({color:'#7a5532', side:THREE.DoubleSide})); gate.position.set(0, 1.25, zw - sz*.2); scene.add(gate);
+    const gate = new THREE.Mesh(new THREE.PlaneGeometry(4.5, 2.4), new THREE.MeshStandardMaterial({map:plankTex(256, 256, 8, 51, [130, 88, 52], null, true).map, roughness:.85, side:THREE.DoubleSide})); gate.position.set(0, 1.25, zw - sz*.2); scene.add(gate);
   }
   // côtés : bardage haut, bas ouvert sur l'extérieur
   for (const sx of [-1,1]){
@@ -757,26 +888,68 @@ function makeSign(){
   const big = new THREE.Mesh(new THREE.PlaneGeometry(8, 2), new THREE.MeshLambertMaterial({map:B[0]}));
   big.position.set(0, 3.6, -(fz+4.05)); scene.add(big);
 }
-// Décor : écurie, arbres, collines
+// Décor : écurie, arbres, haies et lisière de forêt
 {
   const barn = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(26,6,11), new THREE.MeshLambertMaterial({color:'#7a2e1d'}));
+  const siding = plankTex(512, 256, 14, 61, [128, 46, 30], [5, 1], true);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(26,6,11), new THREE.MeshStandardMaterial({map:siding.map, bumpMap:siding.bump, bumpScale:.02, roughness:.85}));
   body.position.y = 3; barn.add(body);
   const roofGeo = new THREE.CylinderGeometry(7.2,7.2,26.6,3,1);
-  const roof = new THREE.Mesh(roofGeo, new THREE.MeshLambertMaterial({color:'#4a4440'}));
+  const roofT = pixelTex(256, 256, (u, v, o) => { const rib = .5+.5*Math.cos(u*24*Math.PI*2); const l = .7 + .25*rib; o[0] = 78*l|0; o[1] = 72*l|0; o[2] = 68*l|0; o[3] = rib; }, [4, 2]);
+  const roof = new THREE.Mesh(roofGeo, new THREE.MeshStandardMaterial({map:roofT.map, bumpMap:roofT.bump, bumpScale:.04, roughness:.6, metalness:.3}));
   roof.rotation.z = Math.PI/2; roof.rotation.x = Math.PI/2; roof.position.y = 6+1.6; roof.scale.set(1,1,.45); barn.add(roof);
-  for (let i=0;i<6;i++){ const d=new THREE.Mesh(new THREE.BoxGeometry(2.4,3.2,.1), new THREE.MeshLambertMaterial({color:'#efe6d6'})); d.position.set(-10.5+i*4.2,1.7,5.56); barn.add(d); }
+  const doorT = plankTex(128, 128, 6, 71, [235, 226, 210], null, true);
+  for (let i=0;i<6;i++){ const d=new THREE.Mesh(new THREE.BoxGeometry(2.4,3.2,.1), new THREE.MeshStandardMaterial({map:doorT.map, roughness:.8})); d.position.set(-10.5+i*4.2,1.7,5.56); barn.add(d); }
   barn.position.set(-34, 0, -10); barn.rotation.y = Math.PI/2; scene.add(barn);
-  const r = rng(21), trunkGeo = new THREE.CylinderGeometry(.25,.35,3,6), leafGeo = new THREE.ConeGeometry(2.6,7,7);
-  const N=90, trunks=new THREE.InstancedMesh(trunkGeo,new THREE.MeshLambertMaterial({color:'#5a4330'}),N), leaves=new THREE.InstancedMesh(leafGeo,new THREE.MeshLambertMaterial({color:'#4f6a3a'}),N);
-  const m4=new THREE.Matrix4(), q=new THREE.Quaternion(), s=new THREE.Vector3(), p=new THREE.Vector3();
-  for(let i=0;i<N;i++){ let x,z; do{ x=(r()-.5)*360; z=(r()-.5)*360; }while(Math.abs(x)<44 && Math.abs(z)<62);
-    const k=.7+r()*.9; s.set(k,k,k);
-    p.set(x,1.5*k,z); m4.compose(p,q,s); trunks.setMatrixAt(i,m4);
-    p.set(x,(3+3.4)*k,z); m4.compose(p,q,s); leaves.setMatrixAt(i,m4); }
-  scene.add(trunks, leaves);
-  const hillMat = new THREE.MeshLambertMaterial({color:'#8f9a72'});
-  for (let i=0;i<9;i++){ const a=i/9*Math.PI*2+.3, d=260+r()*40; const h=new THREE.Mesh(new THREE.SphereGeometry(60+r()*40,16,8),hillMat); h.scale.y=.22+r()*.12; h.position.set(Math.cos(a)*d,-4,Math.sin(a)*d); scene.add(h); }
+
+  // feuillage : plusieurs boules bosselées fusionnées, texture de feuilles, teinte propre à chaque arbre
+  const ln = makeNoise(91);
+  const leafT = pixelTex(256, 256, (u, v, o) => {
+    const c = fbm(ln, u*16, v*16, 16, 4), f = ln(u*256, v*256, 256), holes = clamp01((ln(u*64, v*64, 64) - .62)*5);
+    const l = .55 + .55*(c-.5) + .25*(f-.5) - .3*holes;
+    o[0] = 70*l | 0; o[1] = 104*l | 0; o[2] = 46*l | 0; o[3] = c;
+  }, [3, 3]);
+  const barkT = pixelTex(64, 256, (u, v, o) => { const s2 = ln(u*16, v*4, 16), f = ln(u*64, v*64, 64); const l = .6 + .35*(s2-.5) + .2*(f-.5); o[0] = 92*l|0; o[1] = 78*l|0; o[2] = 64*l|0; o[3] = s2; }, [2, 2]);
+  function crownGeo(seed, parts){
+    const r = rng(seed), P = [], N = [], UV = [];
+    for (let i=0;i<parts;i++){
+      const g = new THREE.IcosahedronGeometry(1, 3), ps = g.attributes.position, uv = g.attributes.uv;
+      const cx = (r()-.5)*1.5, cy = (r()-.3)*1.1, cz = (r()-.5)*1.5, sc = .62 + r()*.45;
+      for (let k=0;k<ps.count;k++){
+        const x = ps.getX(k), y = ps.getY(k), z = ps.getZ(k);
+        const d = 1 + .22*(ln(x*2.3+i*9+10, z*2.3+y*1.7+10, 4096) - .5) + .1*(ln(x*6+30, y*6+z*3+30, 4096) - .5);
+        P.push(cx + x*sc*d, cy + y*sc*d*.92, cz + z*sc*d); N.push(x, y, z); UV.push(uv.getX(k), uv.getY(k));
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2));
+    return g;
+  }
+  const leafMat = new THREE.MeshStandardMaterial({map:leafT.map, bumpMap:leafT.bump, bumpScale:.4, roughness:.9, metalness:0});
+  const trunkMat = new THREE.MeshStandardMaterial({map:barkT.map, bumpMap:barkT.bump, bumpScale:.05, roughness:.95});
+  const r = rng(21), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sv = new THREE.Vector3(), pv = new THREE.Vector3(), cc = new THREE.Color(), up = new THREE.Vector3(0,1,0);
+  // trois familles : chênes et tilleuls ronds, peupliers élancés, arbres de lisière plus petits et serrés
+  const kinds = [
+    { n:110, crown:crownGeo(5, 6), trunkH:3.2, cs:[3.2, 4.6], sy:1, place:() => { let x, z; do { x = (r()-.5)*380; z = (r()-.5)*380; } while (Math.abs(x)<46 && Math.abs(z)<64); return [x, z]; } },
+    { n:40,  crown:crownGeo(8, 5), trunkH:2.4, cs:[1.4, 2.0], sy:3.1, place:() => { const a = r()*Math.PI*2, d = 70 + r()*90; return [Math.cos(a)*d, Math.sin(a)*d]; } },
+    { n:520, crown:crownGeo(13, 4), trunkH:2.6, cs:[2.6, 4.2], sy:1.15, place:() => { const a = r()*Math.PI*2, d = 205 + r()*120; return [Math.cos(a)*d, Math.sin(a)*d]; } },
+  ];
+  const trunkGeo = new THREE.CylinderGeometry(.18, .32, 1, 7); trunkGeo.translate(0, .5, 0);
+  for (const kd of kinds){
+    const crowns = new THREE.InstancedMesh(kd.crown, leafMat, kd.n), trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, kd.n);
+    for (let i=0;i<kd.n;i++){
+      const [x, z] = kd.place(), y0 = terrainH(x, z), k = kd.cs[0] + r()*(kd.cs[1]-kd.cs[0]), th = kd.trunkH*(.8 + r()*.4);
+      q.setFromAxisAngle(up, r()*Math.PI*2);
+      sv.set(k*.28, th, k*.28); pv.set(x, y0, z); m4.compose(pv, q, sv); trunks.setMatrixAt(i, m4);
+      sv.set(k, k*kd.sy, k); pv.set(x, y0 + th + k*kd.sy*.55, z); m4.compose(pv, q, sv); crowns.setMatrixAt(i, m4);
+      cc.setHSL(.22 + (r()-.5)*.07, .35 + r()*.2, .42 + r()*.16); crowns.setColorAt(i, cc);
+    }
+    crowns.castShadow = false; scene.add(trunks, crowns);
+  }
+  // haies basses le long du chemin du manège
+  const hedge = new THREE.InstancedMesh(crownGeo(31, 3), leafMat, 60);
+  for (let i=0;i<60;i++){ const z = -70 + i*2.4, x = 52 + (r()-.5)*.6; q.setFromAxisAngle(up, r()*6.3); sv.set(1.3, .9, 1.3); pv.set(x, .7, z); m4.compose(pv, q, sv); hedge.setMatrixAt(i, m4); cc.setHSL(.24, .4, .36 + r()*.08); hedge.setColorAt(i, cc); }
+  scene.add(hedge);
 }
 
 /* ---------- Cheval vu de la selle ---------- */
@@ -1027,7 +1200,7 @@ function setupModel(g){
   model.traverse(o => {
     if (o.isBone){ BONES[boneKey(o.name)] = o; FILE_REST[boneKey(o.name)] = [o.position.clone(), o.quaternion.clone()]; }
     if (o.isMesh){
-      o.frustumCulled = false;
+      o.frustumCulled = false; o.castShadow = true;
       (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => {
         if (seen.has(m)) return; seen.add(m);
         if (/Body/i.test(m.name)){ setupCoat(m); bodyMesh = o; }
@@ -1270,7 +1443,7 @@ function animateHorse(dt, t, neck){
 
 // Ombre au sol
 {
-  const tex = canvasTex(128,128,(x,w,h)=>{const g=x.createRadialGradient(64,64,0,64,64,64);g.addColorStop(0,'rgba(40,25,10,.55)');g.addColorStop(1,'rgba(40,25,10,0)');x.fillStyle=g;x.fillRect(0,0,w,h)});
+  const tex = canvasTex(128,128,(x,w,h)=>{const g=x.createRadialGradient(64,64,0,64,64,64);g.addColorStop(0,'rgba(40,25,10,.32)');g.addColorStop(1,'rgba(40,25,10,0)');x.fillStyle=g;x.fillRect(0,0,w,h)});
   const sh = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 2.9), new THREE.MeshBasicMaterial({map:tex, transparent:true, depthWrite:false}));
   sh.rotation.x = -Math.PI/2; sh.position.set(0, .05, -.85); rig.add(sh);
 }
@@ -2267,6 +2440,7 @@ function loop(ts){
   updateDust(dt);
   if (playing) drawMinimap();
   updateTpCam(dt);
+  shadowSun.target.position.set(rig.position.x, 0, rig.position.z); shadowSun.position.set(rig.position.x + 3, 14, rig.position.z + 2);
   if (playing || $('#menu').hidden || (frameN++ % 20 === 0)) renderer.render(scene, view==='ext' ? tpCam : camera);
   requestAnimationFrame(loop);
 }
