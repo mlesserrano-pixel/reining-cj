@@ -1128,20 +1128,26 @@ const PROM = (() => {
   for (let i=0;i<900;i++){ const x = (r()-.5)*2*(HX+90), z = (r()-.5)*2*(HZ+90); if (Math.abs(x) < HX+5 && Math.abs(z) < HZ+5) continue; if (riverD(x, z) < 3) continue; RING.push([x, z]); }
   function plant(list, geo, mat, scaleFn, trunkH, isShrub){
     const crowns = new THREE.InstancedMesh(geo, mat, list.length), trunks = isShrub ? null : new THREE.InstancedMesh(trunkGeo, trunkMat, list.length);
+    geo.computeBoundingBox(); const bb = geo.boundingBox, ext = Math.max(-bb.min.x, bb.max.x, -bb.min.z, bb.max.z), sizes = [];
     list.forEach(([x, z], i) => {
-      const [k, ky] = scaleFn(), y0 = groundH(x, z), th = isShrub ? 0 : trunkH*(.8 + r()*.4);
+      const [k, ky] = scaleFn(), y0 = groundH(x, z);
+      let th = isShrub ? 0 : trunkH*(.8 + r()*.4);
+      let cy = y0 + th + k*ky*(isShrub ? .35 : .55);
+      if (!isShrub){ const bottom = cy + bb.min.y*k*ky; if (bottom < y0 + 3.1){ cy += y0 + 3.1 - bottom; th = cy - y0 - k*ky*.55; } }   // le feuillage passe au-dessus de la tête d'un cheval
       q.setFromAxisAngle(up, r()*6.3);
-      if (trunks){ sv.set(k*.28, th, k*.28); pv.set(x, y0 - .1, z); m4.compose(pv, q, sv); trunks.setMatrixAt(i, m4); }
-      sv.set(k, k*ky, k); pv.set(x, y0 + th + k*ky*(isShrub ? .35 : .55), z); m4.compose(pv, q, sv); crowns.setMatrixAt(i, m4);
+      if (trunks){ sv.set(k*.28, th + k*.4, k*.28); pv.set(x, y0 - .1, z); m4.compose(pv, q, sv); trunks.setMatrixAt(i, m4); }
+      sv.set(k, k*ky, k); pv.set(x, cy, z); m4.compose(pv, q, sv); crowns.setMatrixAt(i, m4);
+      sizes.push(isShrub ? ext*k*.92 : .32*k*.28 + .15);
       cc.setHSL(.22 + (r()-.5)*.08, .35 + r()*.2, (isShrub ? .3 : .4) + r()*.14); crowns.setColorAt(i, cc);
     });
     crowns.castShadow = true; group.add(crowns); if (trunks){ trunks.castShadow = true; group.add(trunks); }
+    return sizes;
   }
   const bigW = BIG.map(([x, y]) => P(x, y)), smallW = SMALL.map(([x, y]) => P(x, y));
-  plant(bigW, crown(5, 6), leafMat, () => [2.5 + r()*.8, 1], 4.2, false);
-  plant(smallW, crown(31, 4), leafMat, () => [1.15 + r()*.4, .8], 0, true);
+  const bigR = plant(bigW, crown(5, 6), leafMat, () => [2.5 + r()*.8, 1], 4.2, false);
+  const smallR = plant(smallW, crown(31, 4), leafMat, () => [1.15 + r()*.4, .8], 0, true);
   plant(RING, crown(13, 4), leafMat, () => [2.4 + r()*1.4, 1.1], 4, false);
-  bigW.forEach(([x, z]) => OBST.push([x, z, .6])); smallW.forEach(([x, z]) => OBST.push([x, z, 2.5]));
+  bigW.forEach(([x, z], i) => OBST.push([x, z, bigR[i]])); smallW.forEach(([x, z], i) => OBST.push([x, z, smallR[i]]));
 
   // ---- fleurs : jaunes éparpillées dans la prairie, champ violet et bleu au nord de la rivière
   const flowerTex = (col) => canvasTex(64, 64, (x, w, h) => {
@@ -1203,6 +1209,16 @@ const PROM = (() => {
     sign.position.set(gx - .1, groundH(gx, gz) + 1.95, gz); sign.rotation.y = Math.PI/2; group.add(sign);
   }
 
+  // un cheval occupe un segment, des postérieurs (origine) jusqu'à la tête : on le repousse hors des troncs et des buissons
+  function bodyPush(x, z, fx, fz, half){
+    let px = 0, pz = 0, hit = false;
+    for (const [ox, oz, rr] of OBST){
+      if (Math.abs(ox - x) > rr + 4 || Math.abs(oz - z) > rr + 4) continue;
+      const t = clamp((ox - x)*fx + (oz - z)*fz, -.3, 2.5), cx = x + fx*t + px, cz = z + fz*t + pz, dx = cx - ox, dz = cz - oz, d = Math.hypot(dx, dz), R2 = rr + half;
+      if (d < R2){ const k = (R2 - d)/(d || 1); px += dx*k; pz += dz*k; hit = true; }
+    }
+    return hit ? [px, pz] : null;
+  }
   // ---- déplacement du cheval : clôture, arbres, rivière (sauf le pont)
   function collide(px, pz){
     let blocked = null;
@@ -1210,8 +1226,7 @@ const PROM = (() => {
     if (S.x < -HX+lim && Math.abs(S.z-gz) < 2.2 && S.x > -HX-1.5){ /* dans le portail */ }
     else if (Math.abs(S.x) > HX-lim || Math.abs(S.z) > HZ-lim){ S.x = clamp(S.x, -HX+lim, HX-lim); S.z = clamp(S.z, -HZ+lim, HZ-lim); blocked = 'fence'; }
     if (S.x < -HX-1.2){ S.x = -HX-1.2; blocked = 'gate'; }
-    for (const [ox, oz, rr] of OBST){ const dx = S.x-ox, dz = S.z-oz, d = Math.hypot(dx, dz), R2 = rr + .7;
-      if (d < R2 && d > 1e-3){ S.x = ox + dx/d*R2; S.z = oz + dz/d*R2; blocked = blocked || 'tree'; } }
+    { const [fx, fz] = fwd(S.yaw); const p = bodyPush(S.x, S.z, fx, fz, .5); if (p){ S.x += p[0]; S.z += p[1]; blocked = blocked || 'tree'; } }
     // l'avant du cheval ne doit pas entrer dans l'eau
     const [fx, fz] = fwd(S.yaw), hx = S.x + fx*1.8, hz = S.z + fz*1.8;
     const wet = (x, z) => onBridge(x, z) === null && riverD(x, z) < .6;
@@ -1262,7 +1277,7 @@ const PROM = (() => {
     return sg;
   }
   const bridgeEnds = [[b0x - bdx*3, b0z - bdz*3], [b1x + bdx*3, b1z + bdz*3]];   // un peu au-delà de chaque bout du pont
-  return { group, walkY, groundH, riverD, onBridge, side, bridgeEnds, OBST, collide, animate, drawMap, start:[gx + 4, gz], HX, HZ, cliff:[cfx, cfz] };
+  return { group, walkY, groundH, riverD, onBridge, side, bridgeEnds, OBST, bodyPush, collide, animate, drawMap, start:[gx + 4, gz], HX, HZ, cliff:[cfx, cfz] };
 })();
 let promY = 0;
 function setWorld(m){
@@ -2777,7 +2792,7 @@ function npcPickTarget(n){
   const r = n.rnd, mySide = PROM.side(n.x, n.z);
   for (let k=0;k<60;k++){
     const x = (r()-.5)*2*(PROM.HX-6), z = (r()-.5)*2*(PROM.HZ-5);
-    if (PROM.riverD(x, z) < 4 || PROM.OBST.some(([ox, oz, rr]) => Math.hypot(x-ox, z-oz) < rr+2.5)) continue;
+    if (PROM.riverD(x, z) < 4 || PROM.OBST.some(([ox, oz, rr]) => Math.hypot(x-ox, z-oz) < rr+4)) continue;
     if (Math.hypot(x - PROM.cliff[0], z - PROM.cliff[1]) < 22) continue;
     const other = PROM.side(x, z) !== mySide;
     if (other && r() > .35) continue;                                // de temps en temps seulement, on traverse… par le pont
@@ -2815,7 +2830,7 @@ function updateNPCs(dt){
         // évite les arbres et l'eau (sauf sur le pont), les autres chevaux et le cavalier
         const [fx, fz] = fwd(n.yaw), ax = n.x + fx*3.5, az = n.z + fz*3.5;
         let push = 0;
-        for (const [ox, oz, rr] of PROM.OBST){ const d = Math.hypot(ax-ox, az-oz); if (d < rr + 2){ push += Math.sign(fx*(oz-n.z) - fz*(ox-n.x)) || 1; } }
+        for (const [ox, oz, rr] of PROM.OBST){ const d = Math.hypot(ax-ox, az-oz); if (d < rr + 2.5){ push += 1.5*(Math.sign(fx*(oz-n.z) - fz*(ox-n.x)) || 1); } }
         if (!onBr && PROM.riverD(ax, az) < 2 && n.path.length === 1) push += 2*(PROM.side(n.x, n.z));
         for (const m of NPCS.list) if (m !== n && m.root.visible){ const d = Math.hypot(ax - m.x, az - m.z); if (d < 3) push += Math.sign(fx*(m.z-n.z) - fz*(m.x-n.x)) || 1; }
         if (mode === 'promenade' && Math.hypot(ax - S.x, az - S.z) < 4) push += Math.sign(fx*(S.z-n.z) - fz*(S.x-n.x)) || 1;
@@ -2834,7 +2849,7 @@ function updateNPCs(dt){
       const ok = (PROM.onBridge(nx, nz) !== null || PROM.riverD(nx, nz) > .8) && Math.abs(nx) < PROM.HX-1 && Math.abs(nz) < PROM.HZ-1;
       if (ok){ n.x = nx; n.z = nz; } else { n.yaw += 1.2*dt*(PROM.side(n.x, n.z)); n.v *= .5; }
     }
-    for (const [ox, oz, rr] of PROM.OBST){ const dx = n.x-ox, dz = n.z-oz, d = Math.hypot(dx, dz), R2 = rr+.8; if (d < R2 && d > 1e-3){ n.x = ox + dx/d*R2; n.z = oz + dz/d*R2; } }
+    { const [fx, fz] = fwd(n.yaw), p = PROM.bodyPush(n.x, n.z, fx, fz, .5); if (p){ n.x += p[0]; n.z += p[1]; } }
     // --- allure affichée
     const clip = n.v < .25 ? 'Repos' : n.v < 2.4 ? 'Pas' : n.v < 4.4 ? 'Trot' : (n.gaitClip && n.gaitClip.startsWith('Galop') ? n.gaitClip : 'Galop_G');
     npcSetClip(n, clip);
