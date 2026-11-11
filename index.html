@@ -1710,7 +1710,7 @@ const PROM = (() => {
     const back = new THREE.Mesh(new THREE.BoxGeometry(.6, .9, .06), wood); back.position.set(0, .95, -.28); back.rotation.x = -.15; rc.add(back);
     for (const s of [-1, 1]){ const rk = new THREE.Mesh(new THREE.TorusGeometry(1.1, .03, 4, 16, .9), wood); rk.rotation.set(0, Math.PI/2, 0); rk.position.set(s*.27, 1.1, 0); rk.rotation.z = -Math.PI/2 - .45; rc.add(rk);
       for (const d of [-.25, .25]){ const l = new THREE.Mesh(new THREE.BoxGeometry(.05, .5, .05), wood); l.position.set(s*.27, .25, d); rc.add(l); } }
-    rc.position.set(4.6, 0, 2.6); rc.rotation.y = -2.3; hg.add(rc); HOUSE.chair = rc; OBST.push([hxC + 4.6, hzC + 2.6, .6]);
+    rc.position.set(-3.4, 0, 3.6); rc.rotation.y = 2.6; hg.add(rc); HOUSE.chair = rc; OBST.push([hxC - 3.4, hzC + 3.6, .6]);
     const frame2 = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.5), new THREE.MeshStandardMaterial({map:canvasTex(128, 160, (x, w, h) => { x.fillStyle = '#2a1a10'; x.fillRect(0, 0, w, h); x.fillStyle = '#5b4632'; x.fillRect(10, 10, w-20, h-20);
       x.fillStyle = '#1d140e'; x.beginPath(); x.ellipse(64, 70, 30, 40, 0, 0, 7); x.fill(); x.fillRect(30, 105, 68, 50); x.fillStyle = '#c8b090'; x.beginPath(); x.ellipse(64, 66, 20, 27, 0, 0, 7); x.fill(); x.fillStyle = '#1d140e'; x.fillRect(48, 60, 10, 5); x.fillRect(70, 60, 10, 5); x.fillRect(56, 84, 16, 3); }), roughness:.8}));
     frame2.position.set(hw - .14, 2.7, -2.2); frame2.rotation.y = -Math.PI/2; hg.add(frame2);
@@ -1956,19 +1956,49 @@ const PROM = (() => {
   {
     // le fond de la vallée : prairies vallonnées, une rivière, des bosquets
     const [vx0] = P(1500, 0), vx1 = HX + 420, vz0 = -HZ - 420, [, vz1] = P(0, 820);
+    // des lacs dans la vallée
+    const VLAKES = [[HX + 120, -HZ - 70, 34, 20, .5], [HX + 60, -HZ - 175, 26, 15, -.4], [HX + 205, -HZ - 150, 40, 24, .9], [HX + 230, -HZ + 20, 22, 14, .2]];
+    const vlakeD = (x, z) => { let d = 1e9; for (const [cx, cz, a, b, rot] of VLAKES){ const dx = x - cx, dz = z - cz, u = dx*Math.cos(rot) + dz*Math.sin(rot), v = -dx*Math.sin(rot) + dz*Math.cos(rot); d = Math.min(d, (Math.hypot(u/a, v/b) - 1)*Math.min(a, b)); } return d; };
     const vr = (x, z) => { const t = (z + HZ + 80)/60; return Math.abs(x - (HX + 70 + 40*Math.sin(t) + 20*Math.sin(t*2.3))); };   // le lit de la rivière, d'ouest en est en serpentant
-    const valH = (x, z) => { let h = VALLEY_Y + 5*fbm(pn, x/70+900, z/70+900, 4096, 4) + 9*smooth(140, 360, Math.hypot(x - HX, z + HZ)); const d = vr(x, z); if (d < 9) h = mixc(VALLEY_Y - 2.2, h, smooth(3, 9, d)); return h; };
+    const valH = (x, z) => { let h = VALLEY_Y + 5*fbm(pn, x/70+900, z/70+900, 4096, 4) + 9*smooth(140, 360, Math.hypot(x - HX, z + HZ)); const d = vr(x, z); if (d < 9) h = mixc(VALLEY_Y - 2.2, h, smooth(3, 9, d)); const l = vlakeD(x, z); if (l < 8) h = mixc(VALLEY_Y - 3, h, smooth(-2, 8, l)); return h; };
     const nx = Math.round((vx1 - vx0)/4), nz = Math.round((vz1 - vz0)/4);
     const geo = new THREE.PlaneGeometry(vx1 - vx0, vz1 - vz0, nx, nz); geo.rotateX(-Math.PI/2); geo.translate((vx0 + vx1)/2, 0, (vz0 + vz1)/2);
     const pos = geo.attributes.position, col = new Float32Array(pos.count*3), sa = new Float32Array(pos.count);
-    for (let i=0;i<pos.count;i++){ const x = pos.getX(i), z = pos.getZ(i); pos.setY(i, valH(x, z)); const m = fbm(pn, x/40+5, z/40+5, 4096, 3); col[i*3] = .95 + .25*(m-.5); col[i*3+1] = 1.0 + .2*(m-.5); col[i*3+2] = .6; }
+    for (let i=0;i<pos.count;i++){ const x = pos.getX(i), z = pos.getZ(i); pos.setY(i, valH(x, z)); const m = fbm(pn, x/40+5, z/40+5, 4096, 3); col[i*3] = .95 + .25*(m-.5); col[i*3+1] = 1.0 + .2*(m-.5); col[i*3+2] = .6;
+      const fp = fbm(pn, x/18+333, z/18+333, 4096, 3), ft = fbm(pn, x/9+71, z/9+71, 4096, 2);   // prairies fleuries : taches roses, jaunes, mauves
+      if (fp > .55){ const k = smooth(.55, .63, fp), C = ft < .4 ? [1.35, .75, .95] : ft < .6 ? [1.4, 1.25, .4] : [1.0, .75, 1.3]; for (let c=0;c<3;c++) col[i*3+c] = mixc(col[i*3+c], C[c], k); } }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('aSand', new THREE.BufferAttribute(sa, 1)); geo.computeVertexNormals();
     group.add(new THREE.Mesh(geo, terrainMat(60, vx1 - vx0, vz1 - vz0)));
     waterSurface(vx0, vz0, vx1, vz1, 3, VALLEY_Y - .9, (x, z) => vr(x, z) < 8 && !inBox(x, z), riverMat);
-    const vt = []; for (let k=0;k<6000 && vt.length<520;k++){ const x = vx0 + r()*(vx1 - vx0), z = vz0 + r()*(vz1 - vz0); if (inBox(x, z) || !(z < -HZ - 8 || x > HX + 8) || vr(x, z) < 10) continue; if (fbm(pn, x/50+77, z/50+77, 4096, 2) < .48) continue; vt.push([x, z, 3 + r()*2.5]); }
+    const vt = []; for (let k=0;k<6000 && vt.length<420;k++){ const x = vx0 + r()*(vx1 - vx0), z = vz0 + r()*(vz1 - vz0); if (inBox(x, z) || !(z < -HZ - 8 || x > HX + 8) || vr(x, z) < 10) continue; if (fbm(pn, x/50+77, z/50+77, 4096, 2) < .48) continue; vt.push([x, z, 1.8 + r()*1.6]); }
     const vg = crown(99, 4, 1), vc = new THREE.InstancedMesh(vg, leafMat, vt.length); vg.computeBoundingBox(); const ext = vg.boundingBox.max.x;
     vt.forEach(([x, z, rad], i) => { const k = rad/ext; q.setFromAxisAngle(up, r()*6.3); sv.set(k, k*1.1, k); pv.set(x, valH(x, z) + k*.9, z); m4.compose(pv, q, sv); vc.setMatrixAt(i, m4); cc.setHSL(.2 + (r()-.5)*.08, .45 + r()*.15, .36 + r()*.12); vc.setColorAt(i, cc); });
     group.add(vc);
+    FAIRY.valH = valH; FAIRY.vOK = (x, z) => !inBox(x, z) && (z < -HZ - 10 || x > HX + 10) && vr(x, z) > 9 && vlakeD(x, z) > 4;
+    // lacs, buissons, rochers de la vallée
+    const vlMat = new THREE.MeshPhongMaterial({color:'#0e6f86', specular:'#5a6a60', shininess:80, normalMap:lakeN, normalScale:new THREE.Vector2(.3, .3), transparent:true, opacity:.85});
+    waterSurface(vx0, vz0, vx1, vz1, 3, VALLEY_Y - .9, (x, z) => vlakeD(x, z) < 1 && !inBox(x, z), vlMat);
+    const vOK = (x, z) => !inBox(x, z) && (z < -HZ - 10 || x > HX + 10) && vr(x, z) > 9 && vlakeD(x, z) > 4;
+    const vb = []; for (let k=0;k<9000 && vb.length<700;k++){ const x = vx0 + r()*(vx1 - vx0), z = vz0 + r()*(vz1 - vz0); if (!vOK(x, z)) continue; vb.push([x, z, 1 + r()*1.4]); }
+    { const bg2 = crown(57, 3, 1); bg2.computeBoundingBox(); const e2 = bg2.boundingBox.max.x, im = new THREE.InstancedMesh(bg2, leafMat, vb.length);
+      vb.forEach(([x, z, rr], i) => { const k = rr/e2; q.setFromAxisAngle(up, r()*6.3); sv.set(k, k*.75, k); pv.set(x, valH(x, z) + k*.3, z); m4.compose(pv, q, sv); im.setMatrixAt(i, m4); const fl = r() < .25; cc.setHSL(fl ? .92 : .24 + (r()-.5)*.06, fl ? .5 : .5, fl ? .72 : .32 + r()*.1); im.setColorAt(i, cc); }); group.add(im); }
+    const vrk = []; for (let k=0;k<4000 && vrk.length<160;k++){ const x = vx0 + r()*(vx1 - vx0), z = vz0 + r()*(vz1 - vz0); if (!vOK(x, z)) continue; const s = .8 + r()*2.6; vrk.push([x, z, s*1.3, s*.8, s*1.1]); }
+    { const ys = vrk.map(([x, z]) => valH(x, z)); const im = new THREE.InstancedMesh(ROCKG[0], rockMat, vrk.length); vrk.forEach(([x, z, a, b, c], i) => { q.setFromAxisAngle(up, r()*6.3); sv.set(a, b, c); pv.set(x, ys[i] + b*.2, z); m4.compose(pv, q, sv); im.setMatrixAt(i, m4); cc.setHSL(.07, .15, .55 + r()*.15); im.setColorAt(i, cc); }); group.add(im); }
+    // des champs de fleurs : des touffes colorées qu'on distingue de loin
+    { const fg2 = new THREE.IcosahedronGeometry(1, 0); fg2.scale(1, .35, 1); const pts = [];
+      for (let k=0;k<30000 && pts.length<2600;k++){ const x = vx0 + r()*(vx1 - vx0), z = vz0 + r()*(vz1 - vz0); if (!vOK(x, z) || fbm(pn, x/18+333, z/18+333, 4096, 3) < .55) continue; pts.push([x, z]); }
+      const im = new THREE.InstancedMesh(fg2, new THREE.MeshLambertMaterial(), pts.length); const FCOL = ['#d81e64', '#e0a800', '#7a2cc8', '#f06010', '#c81e9c'];
+      pts.forEach(([x, z], i) => { const s = .5 + r()*.7; q.setFromAxisAngle(up, r()*6.3); sv.set(s, s, s); pv.set(x, valH(x, z) + .1, z); m4.compose(pv, q, sv); im.setMatrixAt(i, m4); cc.set(FCOL[Math.floor(fbm(pn, x/30+9, z/30+9, 4096, 2)*5) % 5]); im.setColorAt(i, cc); }); group.add(im); }
+    // des montagnes au loin, aux sommets enneigés
+    { const Pm = [], Cm = [], Im = []; let off = 0;
+      for (let i=0;i<26;i++){ const a = -Math.PI*.75 + i/25*Math.PI*1.1, R2 = 620 + r()*170, cx = HX + Math.cos(a)*R2, cz = -HZ + Math.sin(a)*R2, Hm = 130 + r()*170, W = 150 + r()*140;
+        const g = new THREE.ConeGeometry(W, Hm, 14, 6), p = g.attributes.position;
+        for (let k=0;k<p.count;k++){ const x = p.getX(k), y = p.getY(k) + Hm/2, z = p.getZ(k), t = y/Hm, n = fbm(rn, x/60 + i*7, z/60 + y/40, 4096, 3);
+          const s = 1 + .35*(n - .5)*(1 - t*.5); Pm.push(cx + x*s, VALLEY_Y - 10 + y*(1 + .25*(n-.5)), cz + z*s);
+          const snow = smooth(.62, .74, t + .12*(n - .5)), base = [.16, .2, .3]; Cm.push(...base.map((v, c) => mixc(v, [1, 1, 1.04][c], snow))); }
+        for (const v of g.index.array) Im.push(v + off); off += p.count; }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(Pm, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(Cm, 3)); g.setIndex(Im); g.computeVertexNormals();
+      group.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({vertexColors:true, fog:false}))); }
     // les falaises de l'autre côté de la vallée, avec leurs cascades
     const CX = HX - 20, CZ = -HZ + 20, RAD = 360, ROWS = 20, Pp = [], UV = [], I = [], NA = 70;
     for (let i=0;i<=NA;i++){ const a = -Math.PI*.62 + i/NA*Math.PI*.95, x0 = CX + Math.cos(a)*RAD, z0 = CZ + Math.sin(a)*RAD, top = VALLEY_Y + 34 + 30*fbm(pn, a*3 + 40, 2, 4096, 3) + 10*Math.sin(a*9);
@@ -1976,14 +2006,14 @@ const PROM = (() => {
     for (let i=0;i<NA;i++) for (let j=0;j<ROWS;j++){ const a = i*(ROWS+1) + j, b = a + ROWS + 1; I.push(a, b, a+1, b, b+1, a+1); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(Pp, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2)); g.setIndex(I); g.computeVertexNormals();
     group.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({map:strataT.map, roughness:1, side:THREE.DoubleSide})));
-    for (const a of [-Math.PI*.42, -Math.PI*.18, Math.PI*.05]){ const x = CX + Math.cos(a)*(RAD - 6), z = CZ + Math.sin(a)*(RAD - 6), H2 = 52;
-      const fm = new THREE.MeshBasicMaterial({map:fallT.clone(), transparent:true, opacity:.85, depthWrite:false, side:THREE.DoubleSide}); fm.map.needsUpdate = true; fm.map.repeat.set(1, 6);
-      const f = new THREE.Mesh(fallGeo(8, H2, 4), fm); f.position.set(x, VALLEY_Y + H2/2 - 4, z); f.rotation.y = Math.atan2(-Math.cos(a), -Math.sin(a)); group.add(f); FALLS.push([f, .9]);
+    for (const [a, wF] of [[-Math.PI*.55, 12], [-Math.PI*.42, 20], [-Math.PI*.3, 10], [-Math.PI*.18, 24], [-Math.PI*.06, 14], [Math.PI*.05, 18], [Math.PI*.18, 12]]){ const x = CX + Math.cos(a)*(RAD - 6), z = CZ + Math.sin(a)*(RAD - 6), H2 = 34 + 26*fbm(pn, a*3 + 40, 2, 4096, 3) + 10*Math.sin(a*9) + 2;
+      const fm = new THREE.MeshBasicMaterial({map:fallT.clone(), transparent:true, opacity:.85, depthWrite:false, side:THREE.DoubleSide}); fm.map.needsUpdate = true; fm.map.repeat.set(wF/8, 6);
+      const f = new THREE.Mesh(fallGeo(wF, H2, 5), fm); f.position.set(x, VALLEY_Y + H2/2 - 4, z); f.rotation.y = Math.atan2(-Math.cos(a), -Math.sin(a)); group.add(f); FALLS.push([f, .9]);
       foamAt(x - Math.cos(a)*4, VALLEY_Y - 1, z - Math.sin(a)*4, -Math.cos(a), -Math.sin(a), 18, 10, 3); }
     // oiseaux qui tournent au-dessus de la vallée
     const birdT = canvasTex(64, 32, (x, w, h) => { x.strokeStyle = '#2a241e'; x.lineWidth = 4; x.lineCap = 'round'; x.beginPath(); x.moveTo(4, 10); x.quadraticCurveTo(18, 2, 32, 18); x.quadraticCurveTo(46, 2, 60, 10); x.stroke(); });
-    for (let i=0;i<22;i++){ const s = new THREE.Sprite(new THREE.SpriteMaterial({map:birdT, transparent:true, depthWrite:false})); s.scale.set(1.6, .8, 1);
-      s.userData = { cx: HX + 40 + (r()-.5)*120, cz: -HZ - 50 + (r()-.5)*100, rad: 18 + r()*40, h: PLAT + 4 + r()*22, ph: r()*6.3, sp: .12 + r()*.12 }; group.add(s); FAIRY.birds.push(s); }
+    for (let i=0;i<48;i++){ const s = new THREE.Sprite(new THREE.SpriteMaterial({map:birdT, transparent:true, depthWrite:false})); const bs = i < 6 ? 3.2 : 1.6; s.scale.set(bs, bs/2, 1);
+      s.userData = { cx: HX + 40 + (r()-.5)*120, cz: -HZ - 50 + (r()-.5)*100, rad: 18 + r()*40, h: i < 6 ? PLAT - 8 - r()*14 : PLAT + 4 + r()*30, ph: r()*6.3, sp: .08 + r()*.12, bs }; group.add(s); FAIRY.birds.push(s); }
   }
   // ---- les cascades turquoise : une petite qui sort de la roche près de la grotte, une grande qui plonge dans la vallée
   const turqFallMat = new THREE.MeshBasicMaterial({map:fallT.clone(), color:'#c8fff6', transparent:true, opacity:.9, depthWrite:false, side:THREE.DoubleSide}); turqFallMat.map.needsUpdate = true;
@@ -2094,8 +2124,8 @@ const PROM = (() => {
       const fit = (o, H) => { const b = new THREE.Box3().setFromObject(o), s = new THREE.Vector3(); b.getSize(s); o.scale.multiplyScalar(H/s.y); const b2 = new THREE.Box3().setFromObject(o), c = new THREE.Vector3(); b2.getCenter(c); const inner = new THREE.Group(); o.position.set(-c.x, -b2.min.y, -c.z); inner.add(o); return inner; };
       const prep = o => o.traverse(m => { if (m.isMesh){ m.castShadow = true; m.frustumCulled = false; } });
       parse('rabbit', g => {
-        for (let i=0;i<3;i++){ const src = i ? THREE.SkeletonUtils.clone(g.scene) : g.scene; prep(src); const root = fit(src, .5); const mx = new THREE.AnimationMixer(src), act = mx.clipAction(g.animations[0]); act.play();
-          let x, z, k = 0; do { x = xcx + 8 + Math.random()*16; z = xcz + (Math.random()-.5)*18; k++; } while ((platD(x, z) > -3 || turqD(x, z) < 3 || OBST.some(([a, b, rr]) => Math.hypot(a-x, b-z) < rr + 1)) && k < 300);
+        for (let i=0;i<7;i++){ const src = i ? THREE.SkeletonUtils.clone(g.scene) : g.scene; prep(src); const root = fit(src, .5); const mx = new THREE.AnimationMixer(src), act = mx.clipAction(g.animations[0]); act.play();
+          let x, z, k = 0; do { if (i < 3){ x = xcx + 8 + Math.random()*16; z = xcz + (Math.random()-.5)*18; } else [x, z] = platZone(); k++; } while ((platD(x, z) > -3 || turqD(x, z) < 3 || OBST.some(([a, b, rr]) => Math.hypot(a-x, b-z) < rr + 1)) && k < 300);
           root.position.set(x, groundH(x, z), z); group.add(root); CREA.rabbits.push({ root, mx, act, hx:x, hz:z, x, z, yaw:Math.random()*6.3, tx:x, tz:z, idle:Math.random()*3, flee:0, v:0 }); }
       });
       parse('deer', g => {
@@ -2121,11 +2151,37 @@ const PROM = (() => {
   function placeDeer(first){
     const D = CREA.deer; if (!D) return; let best = -1, bd = -1;
     for (let i=0;i<DEER_SPOTS.length;i++){ if (i === D.spot) continue; const [x, z] = DEER_SPOTS[i], d = Math.hypot(x - S.x, z - S.z); if (d < 22 && !first) continue; const sc = Math.random()*20 + Math.min(d, 60); if (sc > bd){ bd = sc; best = i; } }
-    if (best < 0) best = 0; D.spot = best; const [x, z] = DEER_SPOTS[best]; D.root.position.set(x, groundH(x, z), z); D.alpha = 0;
+    if (best < 0) best = 0; D.spot = best; D.spooked = false; const [x, z] = DEER_SPOTS[best]; D.root.position.set(x, groundH(x, z), z); D.alpha = 0;
   }
+  const VHORSES = { done:false, list:[] };
+  function valleyHorses(){
+    if (VHORSES.done || typeof NPCS === 'undefined' || !NPCS.built || !NPCS.list.length || !FAIRY.valH) return; VHORSES.done = true;
+    const rv = rng(5150), herds = [[HX + 95, -HZ - 40], [HX + 150, -HZ - 120], [HX + 60, -HZ - 120]];
+    for (let k=0;k<11;k++){ const [hx0, hz0] = herds[k % 3]; let x, z, n = 0; do { x = hx0 + (rv()-.5)*36; z = hz0 + (rv()-.5)*30; n++; } while (!FAIRY.vOK(x, z) && n < 60); if (n >= 60) continue;
+      const src = NPCS.list[k % NPCS.list.length], c = THREE.SkeletonUtils.clone(src.model); c.traverse(o => { if (o.isMesh){ o.castShadow = false; o.frustumCulled = false; } });
+      const root = new THREE.Group(); root.add(c); root.position.set(x, FAIRY.valH(x, z), z); root.rotation.y = rv()*6.3; group.add(root); VHORSES.list.push({ root, ph:rv()*6.3, x, z }); } }
+  // le cheval s'emballe : volte-face, grand galop, impossible de le retenir quelques secondes
+  const PANIC = { t:0, yaw:0, cd:0, houseCd:0 };
+  function spook(fx, fz, msg){
+    if (PANIC.t > 0 || PANIC.cd > 0 || S.mode !== 'ride') return;
+    const dx = S.x - fx, dz = S.z - fz, l = Math.hypot(dx, dz) || 1; PANIC.yaw = Math.atan2(-dx/l, -dz/l); PANIC.t = 3.2; PANIC.cd = 8;
+    setGait(5); toast(msg, 'warn', 'prom-spook', 4); if (typeof SFX !== 'undefined') SFX.crow();
+  }
+  EXTRA_ANIM.push((dt) => {
+    PANIC.cd -= dt; PANIC.houseCd -= dt;
+    if (PANIC.t > 0){ PANIC.t -= dt; keys.clear(); pressed.clear();
+      let da = PANIC.yaw - S.yaw; while (da > Math.PI) da -= 2*Math.PI; while (da < -Math.PI) da += 2*Math.PI; S.yaw += clamp(da, -3.2*dt, 3.2*dt);
+      if (S.gait < 5 && PANIC.t > .6) setGait(5);
+      if (PANIC.t <= 0){ setGait(0); toast(`${H.name} se calme enfin… doucement`, 'good', 'prom-calm', 4); } }
+    const dDoor = Math.hypot(S.x - (hxC - HW/2 - 2), S.z - hzC);
+    if (dDoor < 11 && !inHouse(S.x, S.z, -1) && PANIC.houseCd <= 0 && S.v > .3){ PANIC.houseCd = 60; spook(hxC, hzC, `${H.name} s'emballe devant la maison ! Impossible de le retenir`); }
+    const D = CREA.deer; if (D && D.root.visible && D.alpha > .6 && !D.spooked){ const d = Math.hypot(S.x - D.root.position.x, S.z - D.root.position.z); if (d < 28){ D.spooked = true; spook(D.root.position.x, D.root.position.z, `${H.name} a vu la créature… il s'emballe !`); } }
+  });
   const _hq = new THREE.Quaternion(), _pq = new THREE.Quaternion(), _wq = new THREE.Quaternion(), _hp = new THREE.Vector3(), _ax = new THREE.Vector3(0, 1, 0);
   EXTRA_ANIM.push((dt, t) => {
     if (CREA.state === 0 && group.visible) loadCreatures();
+    if (!VHORSES.done && platD(S.x, S.z) < 40) valleyHorses();
+    for (const h of VHORSES.list){ h.root.rotation.y += .05*Math.sin(t*.13 + h.ph)*dt; }
     // lapins : petits trajets au hasard, ils détalent si le cheval approche
     for (const R of CREA.rabbits){
       const dh = Math.hypot(R.x - S.x, R.z - S.z);
@@ -2165,7 +2221,7 @@ const PROM = (() => {
   });
 
   // ---- musiques de la promenade : balade (partout), forêt, plage, grotte et clairière ; fondus enchaînés, volume 60 %
-  const MUSIC = { tracks:{}, cur:null, VOL:.6 };
+  const MUSIC = { tracks:{}, cur:null, VOL:.55 };
   for (const k of ['balade', 'foret', 'plage', 'fee']){ const a = new Audio(); a.src = 'music/' + k + '.mp3'; a.loop = true; a.preload = k === 'balade' ? 'auto' : 'none'; a.volume = 0; MUSIC.tracks[k] = a; }
   MUSIC.zone = (x, z) => (inCave(x, z) || platD(x, z) < 2 || archDark(x, z) > 0) ? 'fee' : forestD(x, z) < 0 ? 'foret' : lay('sand', x, z) > .4 ? 'plage' : 'balade';
   MUSIC.stop = () => { for (const a of Object.values(MUSIC.tracks)){ a.volume = 0; a.pause(); } MUSIC.cur = null; };
@@ -2345,7 +2401,7 @@ const PROM = (() => {
         if (turqD(nx, nz) > -.6){ d.yaw += 2 + Math.random(); nx = f.position.x; nz = f.position.z; } else d.yaw += (Math.random()-.5)*dt*1.5;
         f.position.x = nx; f.position.z = nz; f.rotation.y = d.yaw; f.position.y = TURQ_Y - .22 + .04*Math.sin(t*4 + d.v*10); }
     }
-    for (const b of FAIRY.birds){ const d = b.userData, a = t*d.sp + d.ph; b.position.set(d.cx + Math.cos(a)*d.rad, d.h + 2*Math.sin(t*.4 + d.ph), d.cz + Math.sin(a)*d.rad); b.scale.y = .8*(.35 + .65*Math.abs(Math.sin(t*5 + d.ph*3))); }
+    for (const b of FAIRY.birds){ const d = b.userData, a = t*d.sp + d.ph; b.position.set(d.cx + Math.cos(a)*d.rad, d.h + 2*Math.sin(t*.4 + d.ph), d.cz + Math.sin(a)*d.rad); b.scale.y = d.bs/2*(.35 + .65*Math.abs(Math.sin(t*5 + d.ph*3))); }
     for (const m of FAIRY.rays) m.material.opacity = (.15 + .06*Math.sin(t*.6 + m.position.x))*clamp01(1 - Math.hypot(S.x - m.position.x, S.z - m.position.z)/90);
     // ronds dans l'eau quand le cheval avance dans l'eau
     splashCd -= dt;
@@ -3101,10 +3157,10 @@ const Sound = {
     const t = this.ctx.currentTime;
     const s = this.ctx.createBufferSource(); s.buffer = this.noise;
     const f = this.ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value = 420 + power*500;
-    const g = this.ctx.createGain(); g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.35*power+.05,t+.006); g.gain.exponentialRampToValueAtTime(.0001,t+.09);
+    const g = this.ctx.createGain(); g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime((.35*power+.05)*1.1,t+.006); g.gain.exponentialRampToValueAtTime(.0001,t+.09);
     s.connect(f); f.connect(g); g.connect(this.master); s.start(t, Math.random()*.5, .12);
     const o = this.ctx.createOscillator(); o.frequency.setValueAtTime(110,t); o.frequency.exponentialRampToValueAtTime(48,t+.08);
-    const og = this.ctx.createGain(); og.gain.setValueAtTime(.0001,t); og.gain.exponentialRampToValueAtTime(.25*power+.03,t+.005); og.gain.exponentialRampToValueAtTime(.0001,t+.1);
+    const og = this.ctx.createGain(); og.gain.setValueAtTime(.0001,t); og.gain.exponentialRampToValueAtTime((.25*power+.03)*1.1,t+.005); og.gain.exponentialRampToValueAtTime(.0001,t+.1);
     o.connect(og); og.connect(this.master); o.start(t); o.stop(t+.12);
   },
   slide(level){ if (this.slideGain) this.slideGain.gain.setTargetAtTime(this.on ? level*.5 : 0, this.ctx.currentTime, .05); }
