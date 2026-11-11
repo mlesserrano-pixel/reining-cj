@@ -991,7 +991,11 @@ const PROM = (() => {
   const turqD = (x, z) => sd('turq', x, z) + .4*(pn(x/7+61, z/7+61, 4096) - .5);
   const lakeD = (x, z) => sd('lake', x, z), seaD = (x, z) => sd('sea', x, z), caveD = (x, z) => sd('cave', x, z);
   const caveWD = (x, z) => Math.min(sd('cavew', x, z), sd('purple', x, z) + .6);
-  const bandD = (x, z) => sd('band', x, z) + 1.2*(pn(x/11+81, z/11+81, 4096) - .5);
+  const bandRaw = (x, z) => sd('band', x, z) + 1.2*(pn(x/11+81, z/11+81, 4096) - .5);
+  const bandD = (x, z) => {   // pas de crête devant les deux passages de la grotte : la sortie doit rester dégagée
+    let b = bandRaw(x, z);
+    for (const [cx, cz, ux, uz] of PASSAGES){ const d = -((x-cx)*ux + (z-cz)*uz), s = Math.abs(-(x-cx)*uz + (z-cz)*ux); if (d > -2 && d < 24 && s < 9 + d*.35) b = Math.max(b, mixc(6, b, smooth(6 + d*.35, 9 + d*.35, s))); }
+    return b; };
   const platD = (x, z) => sd('plat', x, z), darkD = (x, z) => sd('dark', x, z);
   const forestD = (x, z) => sd('forest', x, z) + 1.6*(pn(x/14+700, z/14+700, 4096) - .5);
   const side = (x, z) => { const v = lay('side', x, z); return v > .75 ? 1 : v < .25 ? -1 : 0; };
@@ -1005,7 +1009,8 @@ const PROM = (() => {
   const [scx, scz] = P(1436, 104);                              // puits de lumière, au-dessus d'une vasque
   const [xcx, xcz] = P(1814, 128);                              // sortie secrète vers la clairière
   const edx0 = scx - ecx, edz0 = scz - ecz, el0 = Math.hypot(edx0, edz0), eux = edx0/el0, euz = edz0/el0;
-  const xux = 1, xuz = 0;                                       // la sortie regarde vers l'est
+  const xux = 1, xuz = 0;
+  const PASSAGES = [[ecx, ecz, eux, euz], [xcx, xcz, -xux, -xuz]];                                       // la sortie regarde vers l'est
   const corrT = (x, z, cx, cz, ux, uz) => [(x-cx)*ux + (z-cz)*uz, -(x-cx)*uz + (z-cz)*ux];
   const corridor = (x, z) => { const [t, s] = corrT(x, z, ecx, ecz, eux, euz); if (t > -4.5 && t < 6 && Math.abs(s) < 2.5) return true; const [t2, s2] = corrT(x, z, xcx, xcz, xux, xuz); return t2 > -6 && t2 < 5 && Math.abs(s2) < 2.6; };
   const doorway = (x, z) => { const [t, s] = corrT(x, z, ecx, ecz, eux, euz); if (t < -3.2 && t > -12 && Math.abs(s) < 3.4) return true; const [t2, s2] = corrT(x, z, xcx, xcz, xux, xuz); return t2 > 3.4 && t2 < 12 && Math.abs(s2) < 3.4; };
@@ -1047,13 +1052,13 @@ const PROM = (() => {
   function outTheme(x, z){
     const bx = clamp(x, -HX + 2, HX - 2), bz = clamp(z, -HZ + 2, HZ - 2), o = boxOut(x, z);
     const sand = clamp01((lay('sand', bx, bz) - .25)*2), sea = seaD(bx, bz) < 0 ? 1 : 0, forest = forestD(bx, bz) < 2 ? 1 : 0;
-    const valley = (darkD(bx, bz) < 3 || platD(bx, bz) < 0) && bandD(bx, bz) > 0 ? 1 : 0, rock = bandD(bx, bz) < 1 || caveD(bx, bz) < 4 ? 1 : 0;
+    const valley = (darkD(bx, bz) < 3 || platD(bx, bz) < 0) && bandD(bx, bz) > 0 && caveD(bx, bz) > 8 ? 1 : 0, rock = bandD(bx, bz) < 1 || caveD(bx, bz) < 4 ? 1 : 0;
     return { sand: sea ? 0 : sand, sea, forest, valley, rock, d:o };
   }
   const onBridgeFn = { f:null };
   function walkY(x, z){ const t = onBridgeFn.f ? onBridgeFn.f(x, z) : null; return t !== null ? Math.max(onBridgeFn.deck(t), groundH(x, z)) : groundH(x, z); }
   const inLake = (x, z) => lakeD(x, z) < -.3 || seaD(x, z) < -.3;
-  const valleyCut = (x, z) => inBox(x, z) ? darkD(x, z) < .3 : outTheme(x, z).valley === 1;
+  const valleyCut = (x, z) => inBox(x, z) ? darkD(x, z) < .3 && caveD(x, z) > 8 : outTheme(x, z).valley === 1;
   // sentier de la forêt : il passe près du squelette, mène à la maison hantée et à la poupée
   const TRAIL = [[1700,1530],[1715,1680],[1745,1850],[1800,1950],[1880,2005],[1990,2040],[2030,2041]].map(([a, b]) => P(a, b));
   const TRAIL2 = [[1990,2040],[1975,2110],[1890,2165],[1760,2130],[1620,2040],[1500,1950],[1350,1860]].map(([a, b]) => P(a, b));
@@ -1186,7 +1191,15 @@ const PROM = (() => {
       im.castShadow = !!castS; im.receiveShadow = true; group.add(im); });
   }
 
-  const CAVE_IN = { value:0 }, CAVE_VEIL = [];
+  const CAVE_IN = { value:0 }, CAVE_VEIL = [], DAYGLOW = [];
+  // les deux arches (entrée, sortie) : la paroi de la grotte doit passer AU-DESSUS d'elles, jamais à travers le passage
+  const ARCH_R = 3.0, ARCH_H = 4.1, ARCH_D0 = -7, ARCH_D1 = 6.2;
+  const ARCHES = [[ecx, ecz, eux, euz], [xcx, xcz, -xux, -xuz]];
+  function archLift(x, z){ let h = -1e9;
+    for (const [cx, cz, ux, uz] of ARCHES){ const d = -((x-cx)*ux + (z-cz)*uz), s = -(x-cx)*uz + (z-cz)*ux, ro = ARCH_R + 2.2;
+      if (d < ARCH_D0 - .5 || d > ARCH_D1 + .3 || Math.abs(s) > ro) continue;
+      const bx = cx - ux*d, bz = cz - uz*d; h = Math.max(h, groundH(bx, bz) - .35 + (ARCH_H + 3.1)*Math.sqrt(1 - (s/ro)**2)); }
+    return h; }
   // ---- la grotte secrète : un massif de grès creux, une entrée cachée au sud-ouest, une sortie secrète vers la clairière
   {
     const [x0, z0r] = P(M.caveBox[0] - 40, 0), [x1, z1] = P(M.caveBox[2] + 40, M.caveBox[3] + 50), z0 = z0r - 24;
@@ -1199,9 +1212,9 @@ const PROM = (() => {
       if (cd < 0) y = 7.8 + 3.8*Math.sqrt(inner) + 2.2*(n-.5);
       else y = (7.8 + 2.4*(n-.5)) * Math.max(0, 1 - Math.pow(cd/3.4, 1.4)) - .6;
       if (corridor(x, z)) y = Math.min(Math.max(y, 3.9 + .4*n), 4.5 + .5*n);
-      if (doorway(x, z)) y = Math.min(y, 5.4 + .4*n);   // au-dessus du passage : la roche s'appuie sur l'arche
+      let cutArch = false; { const al = archLift(x, z); if (al > -1e8){ if (cd > .2) cutArch = true; else y = Math.max(y, al); } }   // dehors, l'arche fait la paroi ; dedans, la voûte passe au-dessus
       const sh = Math.hypot(x - scx, z - scz);
-      keep[i] = (sh > 2.6 ? 1 : 0) & (cd < 3.6 || corridor(x, z) ? 1 : 0);
+      keep[i] = (sh > 2.6 ? 1 : 0) & (cd < 3.6 || corridor(x, z) ? 1 : 0) & (cutArch ? 0 : 1);
       const zc = Math.max(z, -HZ + 1.5);
       if (zc !== z){ const cdc = caveD(x, zc), e = zc - z; keep[i] = cdc < 3.6 && e < 4.5 ? 1 : 0; y = cdc < 0 ? (9 + 2.4*(n-.5))*Math.max(0, 1 - Math.pow(e/3.6, 1.4)) - .6 : y; }   // au-delà du bord nord : la roche ferme la salle
       pos.setXYZ(i, x, Math.max(y, groundH(x, z) - .8), z);
@@ -1228,7 +1241,7 @@ const PROM = (() => {
     const archOutMat = new THREE.MeshStandardMaterial({map:strataT.map, bumpMap:strataT.bump, bumpScale:.35, roughness:.95, side:THREE.DoubleSide});
     const ra = rng(4747);
     function arch(cx, cz, ux, uz){   // u : direction vers l'intérieur de la grotte
-      const sx = -uz, sz = ux, D0 = -7, D1 = 6.2, ND = 20, NA = 18, R = 3.0, HH = 4.1, inner = [], outer = [];
+      const sx = -uz, sz = ux, D0 = ARCH_D0, D1 = ARCH_D1, ND = 20, NA = 18, R = ARCH_R, HH = ARCH_H, inner = [], outer = [];
       for (let i=0;i<=ND;i++){ const d = D0 + (D1 - D0)*i/ND, bx = cx - ux*d, bz = cz - uz*d, by = groundH(bx, bz) - .35;
         for (let j=0;j<=NA;j++){ const a = Math.PI*j/NA, n = fbm(rn, d*.4 + j*.3, j*.5 + 3, 4096, 3) - .5, ca = Math.cos(a), sa = Math.sin(a);
           inner.push(bx + sx*ca*(R + .35*n), by + sa*(HH + .4*n), bz + sz*ca*(R + .35*n));
@@ -1243,10 +1256,15 @@ const PROM = (() => {
       const lip = []; for (let j=0;j<=NA;j++){ const k = ND*(NA+1) + j; lip.push(inner[k*3], inner[k*3+1], inner[k*3+2]); } for (let j=0;j<=NA;j++){ const k = ND*(NA+1) + j; lip.push(outer[k*3], outer[k*3+1], outer[k*3+2]); }
       group.add(new THREE.Mesh(grid(lip, 1, NA, (i, j) => [i, j*.3]), archOutMat));
       for (let d = 3; d < D1; d += .6) for (const s of [-1, 1]) OBST.push([cx - ux*d + sx*s*3.3, cz - uz*d + sz*s*3.3, .35]);
-      const br = []; for (const s of [-1, 1]) for (let k=0;k<3;k++){ const d = D1 - .5 - k*2.2, w = R + 3 + ra()*1.5; br.push([cx - ux*d + sx*s*w, cz - uz*d + sz*s*w, 1.6 + ra()*1.2, 1.4 + ra()*1.6, 1.6 + ra()*1.2, 0]); }
+      const br = []; if (ux > 0 || cx < xcx - 1) for (const s of [-1, 1]) for (let k=0;k<3;k++){ const d = D1 - .5 - k*2.2, w = R + 3 + ra()*1.5; br.push([cx - ux*d + sx*s*w, cz - uz*d + sz*s*w, 1.6 + ra()*1.2, 1.4 + ra()*1.6, 1.6 + ra()*1.2, 0]); }
       rocks(br, true, .06, archOutMat);
     }
     arch(ecx, ecz, eux, euz); arch(xcx, xcz, -xux, -xuz);
+    // la lumière du jour au bout de chaque passage : on voit clairement par où sortir
+    const dayT = canvasTex(128, 128, (x, w, h) => { const g = x.createRadialGradient(64, 80, 6, 64, 80, 70); g.addColorStop(0, 'rgba(255,246,214,1)'); g.addColorStop(.45, 'rgba(255,236,190,.55)'); g.addColorStop(1, 'rgba(255,230,180,0)'); x.fillStyle = g; x.fillRect(0, 0, w, h); });
+    for (const [cx, cz, ux, uz] of ARCHES){ const d = ARCH_D1 - .4, bx = cx - ux*d, bz = cz - uz*d;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 5.2), new THREE.MeshBasicMaterial({map:dayT, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, fog:false, side:THREE.DoubleSide}));
+      m.position.set(bx, groundH(bx, bz) + 2.2, bz); m.rotation.y = Math.atan2(ux, uz); group.add(m); DAYGLOW.push(m); }
   }
   const hideBush = [];
   for (const [a, b] of [[-6, 3.6], [-7.5, -3.8], [-10, 4.4], [-4, 5.8], [-4.6, -6]]) hideBush.push([ecx + eux*a - euz*b, ecz + euz*a + eux*b]);
@@ -1970,13 +1988,23 @@ const PROM = (() => {
   // ---- les cascades turquoise : une petite qui sort de la roche près de la grotte, une grande qui plonge dans la vallée
   const turqFallMat = new THREE.MeshBasicMaterial({map:fallT.clone(), color:'#c8fff6', transparent:true, opacity:.9, depthWrite:false, side:THREE.DoubleSide}); turqFallMat.map.needsUpdate = true;
   {
-    const [tx, tz] = P(1705, 330), H2 = 6.5;
-    const f = new THREE.Mesh(fallGeo(3.4, H2, .8), turqFallMat); f.position.set(tx, TURQ_Y + H2/2 - .3, tz - .6); f.rotation.y = Math.PI; group.add(f); FALLS.push([f, 1.4]);
+    const [tx] = P(1705, 0); let tz = P(0, 260)[1]; for (let k=0;k<80 && bandD(tx, tz + .5) > 0;k++) tz += .5; const H2 = Math.max(4, groundH(tx, tz + 1.5) - TURQ_Y);
+    const f = new THREE.Mesh(fallGeo(8, H2, .9), turqFallMat); f.position.set(tx, TURQ_Y + H2/2 - .3, tz - .2); f.rotation.y = Math.PI; group.add(f); FALLS.push([f, 1.4]);
     foamAt(tx, TURQ_Y + .1, tz - 1.6, 0, -1, 14, 3, .6);
     let best = null; for (const [x, z] of EDGE){ if (!inBox(x, z)) continue; const d = turqD(x - 3, z); if (!best || d < best[2]) best = [x, z, d]; }
     if (best){ const [x, z] = best, H3 = PLAT - VALLEY_Y + 2, fm = turqFallMat.clone(); fm.map = fallT.clone(); fm.map.needsUpdate = true; fm.map.repeat.set(1, 5);
-      const f2 = new THREE.Mesh(fallGeo(8, H3, 3.5), fm); f2.position.set(x + 6, TURQ_Y - H3/2 + .2, z - 3); f2.rotation.y = Math.PI/2; group.add(f2); FALLS.push([f2, 1.1]);
-      foamAt(x + 10, VALLEY_Y - .5, z - 3, 1, 0, 22, 8, 3.2); FAIRY.bigFall = [x, z]; }
+      // une grande cascade en rideau : trois nappes d'eau superposées, de l'écume en haut, un nuage d'embruns et un arc-en-ciel en bas
+      const zc = z - 6;
+      for (const [w, bow, dx, sp, op, rep] of [[30, 14, 1.5, 1.1, .92, 5], [22, 17, 2.5, 1.45, .7, 4], [14, 20, 3.5, .85, .55, 6]]){
+        const m2 = turqFallMat.clone(); m2.map = fallT.clone(); m2.map.needsUpdate = true; m2.map.repeat.set(w/6, rep); m2.opacity = op;
+        const f2 = new THREE.Mesh(fallGeo(w, H3, bow), m2); f2.position.set(x + dx, TURQ_Y - H3/2 + .2, zc); f2.rotation.y = Math.PI/2; group.add(f2); FALLS.push([f2, sp]); }
+      for (let k=-13;k<=13;k+=3.2) foamAt(x + .5, TURQ_Y, zc + k, 1, 0, 5, 3, .8);
+      for (let k=-15;k<=15;k+=5) foamAt(x + 19, VALLEY_Y - .5, zc + k, 1, 0, 12, 10, 4.5);
+      const rbT = canvasTex(256, 128, (c, w, h) => { const cols = ['255,60,60', '255,160,40', '255,240,60', '80,220,90', '60,140,255', '150,80,220']; c.lineWidth = 7;
+        cols.forEach((col, i) => { c.strokeStyle = `rgba(${col},.55)`; c.beginPath(); c.arc(128, 128, 118 - i*7, Math.PI, 0); c.stroke(); }); });
+      const rb = new THREE.Mesh(new THREE.PlaneGeometry(44, 22), new THREE.MeshBasicMaterial({map:rbT, transparent:true, opacity:.4, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, fog:false}));
+      rb.position.set(x + 30, VALLEY_Y + 8, zc); rb.rotation.y = Math.PI/2; group.add(rb);
+      FAIRY.bigFall = [x, zc]; }
   }
 
   // ---- la plage : coraux dans le lac et la mer, poissons multicolores, étoiles de mer et coquillages
@@ -2066,9 +2094,9 @@ const PROM = (() => {
       const fit = (o, H) => { const b = new THREE.Box3().setFromObject(o), s = new THREE.Vector3(); b.getSize(s); o.scale.multiplyScalar(H/s.y); const b2 = new THREE.Box3().setFromObject(o), c = new THREE.Vector3(); b2.getCenter(c); const inner = new THREE.Group(); o.position.set(-c.x, -b2.min.y, -c.z); inner.add(o); return inner; };
       const prep = o => o.traverse(m => { if (m.isMesh){ m.castShadow = true; m.frustumCulled = false; } });
       parse('rabbit', g => {
-        for (let i=0;i<3;i++){ const src = i ? THREE.SkeletonUtils.clone(g.scene) : g.scene; prep(src); const root = fit(src, .34); const mx = new THREE.AnimationMixer(src), act = mx.clipAction(g.animations[0]); act.play();
-          let x, z, k = 0; do { [x, z] = platZone(); k++; } while ((platD(x, z) > -6 || turqD(x, z) < 3 || OBST.some(([a, b, rr]) => Math.hypot(a-x, b-z) < rr + 1)) && k < 300);
-          root.position.set(x, groundH(x, z), z); group.add(root); CREA.rabbits.push({ root, mx, act, x, z, yaw:Math.random()*6.3, tx:x, tz:z, idle:Math.random()*3, flee:0, v:0 }); }
+        for (let i=0;i<3;i++){ const src = i ? THREE.SkeletonUtils.clone(g.scene) : g.scene; prep(src); const root = fit(src, .5); const mx = new THREE.AnimationMixer(src), act = mx.clipAction(g.animations[0]); act.play();
+          let x, z, k = 0; do { x = xcx + 8 + Math.random()*16; z = xcz + (Math.random()-.5)*18; k++; } while ((platD(x, z) > -3 || turqD(x, z) < 3 || OBST.some(([a, b, rr]) => Math.hypot(a-x, b-z) < rr + 1)) && k < 300);
+          root.position.set(x, groundH(x, z), z); group.add(root); CREA.rabbits.push({ root, mx, act, hx:x, hz:z, x, z, yaw:Math.random()*6.3, tx:x, tz:z, idle:Math.random()*3, flee:0, v:0 }); }
       });
       parse('deer', g => {
         prep(g.scene); const root = fit(g.scene, 2.9); const mx = new THREE.AnimationMixer(g.scene); mx.clipAction(g.animations[0]).play();
@@ -2077,7 +2105,7 @@ const PROM = (() => {
         placeDeer(true);
       });
       parse('witch', g => {
-        prep(g.scene); g.scene.traverse(m => { if (m.isMesh && m.material && m.material.emissive){ m.material.emissive.set('#2a2630'); m.material.emissiveIntensity = .5; } });   // une pâleur qui se devine dans le noir
+        prep(g.scene); g.scene.traverse(m => { if (m.isMesh && m.material && m.material.emissive){ m.material.emissive.set('#000000'); m.material.emissiveIntensity = 0; } });   // une pâleur qui se devine dans le noir
         const root = fit(g.scene, 1.72); const mx = new THREE.AnimationMixer(g.scene); mx.clipAction(g.animations[0]).play(); mx.setTime(0); mx.timeScale = 0;   // figée
         let head = null; g.scene.traverse(b => { if (b.isBone && /Head/.test(b.name) && !head) head = b; });
         const [wx, wz] = [hxC + 6.0, hzC + 3.4]; root.position.set(wx, houseFloor, wz); root.rotation.y = Math.atan2((hxC + 1.5) - wx, hzC - wz); group.add(root);
@@ -2105,7 +2133,7 @@ const PROM = (() => {
       if (dh < 4.5 && R.flee <= 0){ const a = Math.atan2(R.x - S.x, R.z - S.z); R.tx = R.x + Math.sin(a)*7; R.tz = R.z + Math.cos(a)*7; R.flee = 1.6; }
       R.flee -= dt;
       const dx = R.tx - R.x, dz = R.tz - R.z, d = Math.hypot(dx, dz);
-      if (d < .3){ R.v = 0; R.idle -= dt; if (R.idle <= 0){ for (let k=0;k<20;k++){ const nx = R.x + (Math.random()-.5)*14, nz = R.z + (Math.random()-.5)*14; if (platD(nx, nz) < -4 && turqD(nx, nz) > 1.5){ R.tx = nx; R.tz = nz; break; } } R.idle = 1 + Math.random()*4; } }
+      if (d < .3){ R.v = 0; R.idle -= dt; if (R.idle <= 0){ for (let k=0;k<20;k++){ const nx = R.hx + (Math.random()-.5)*20, nz = R.hz + (Math.random()-.5)*20; if (platD(nx, nz) < -3 && turqD(nx, nz) > 1.5){ R.tx = nx; R.tz = nz; break; } } R.idle = 1 + Math.random()*4; } }
       else { const want = Math.atan2(dx, dz); let da = want - R.yaw; while (da > Math.PI) da -= 2*Math.PI; while (da < -Math.PI) da += 2*Math.PI; R.yaw += da*Math.min(1, dt*6);
         const sp = R.flee > 0 ? 3.2 : 1.1; R.v = sp; const nx = R.x + Math.sin(R.yaw)*sp*dt, nz = R.z + Math.cos(R.yaw)*sp*dt;
         if (platD(nx, nz) > -2.5 || turqD(nx, nz) < .8){ R.tx = R.x; R.tz = R.z; } else { R.x = nx; R.z = nz; } }
@@ -2115,7 +2143,7 @@ const PROM = (() => {
     // la créature
     const D = CREA.deer;
     if (D){ const [x, z] = [D.root.position.x, D.root.position.z], d = Math.hypot(x - S.x, z - S.z);
-      if (d < 70){ D.mx.update(dt); const want = Math.atan2(S.x - x, S.z - z); let da = want - D.root.rotation.y; while (da > Math.PI) da -= 2*Math.PI; while (da < -Math.PI) da += 2*Math.PI; D.root.rotation.y += da*Math.min(1, dt*.8); }
+      if (d < 70){ D.mx.update(dt); const want = Math.atan2(S.x - x, S.z - z) + Math.PI; let da = want - D.root.rotation.y; while (da > Math.PI) da -= 2*Math.PI; while (da < -Math.PI) da += 2*Math.PI; D.root.rotation.y += da*Math.min(1, dt*.8); }
       const visible = t > D.hiddenUntil;
       if (visible && d < 11 && D.alpha > .5){ D.hiddenUntil = t + 10 + Math.random()*10; SFX.whisper(); toast('Elle était là… elle a disparu', 'warn', 'prom-deer-gone', 20); }
       if (!visible && D.alpha < .02 && D.spot >= 0 && Math.random() < dt){ placeDeer(false); D.root.visible = false; }
@@ -2133,6 +2161,22 @@ const PROM = (() => {
       W.head.parent.getWorldQuaternion(_pq); W.head.getWorldQuaternion(_wq);
       _hq.setFromAxisAngle(_ax, W.look).multiply(_wq);                 // rotation autour de la verticale du monde
       W.head.quaternion.copy(_pq.invert().multiply(_hq));
+    }
+  });
+
+  // ---- musiques de la promenade : balade (partout), forêt, plage, grotte et clairière ; fondus enchaînés, volume 60 %
+  const MUSIC = { tracks:{}, cur:null, VOL:.6 };
+  for (const k of ['balade', 'foret', 'plage', 'fee']){ const a = new Audio(); a.src = 'music/' + k + '.mp3'; a.loop = true; a.preload = k === 'balade' ? 'auto' : 'none'; a.volume = 0; MUSIC.tracks[k] = a; }
+  MUSIC.zone = (x, z) => (inCave(x, z) || platD(x, z) < 2 || archDark(x, z) > 0) ? 'fee' : forestD(x, z) < 0 ? 'foret' : lay('sand', x, z) > .4 ? 'plage' : 'balade';
+  MUSIC.stop = () => { for (const a of Object.values(MUSIC.tracks)){ a.volume = 0; a.pause(); } MUSIC.cur = null; };
+  EXTRA_ANIM.push((dt) => {
+    if (typeof playing !== 'undefined' && !playing){ if (MUSIC.cur) MUSIC.stop(); return; }
+    const on = typeof Sound === 'undefined' || Sound.on, want = MUSIC.zone(S.x, S.z); MUSIC.cur = want;
+    for (const [k, a] of Object.entries(MUSIC.tracks)){
+      const target = on && k === want ? MUSIC.VOL : 0, rate = k === want ? .35 : .5;   // montée douce, descente un peu plus rapide
+      let v = a.volume + clamp(target - a.volume, -rate*dt, rate*dt); v = clamp01(v); a.volume = v;
+      if (target > 0 && a.paused){ const p = a.play(); if (p && p.catch) p.catch(() => {}); }
+      if (v <= .001 && target === 0 && !a.paused) a.pause();
     }
   });
 
@@ -2239,6 +2283,7 @@ const PROM = (() => {
     AMB.fog = scene.fog.color.clone(); AMB.near = GOLD.near; AMB.far = GOLD.far;
   }
   function resetAmbiance(){
+    MUSIC.stop();
     AMB.k = AMB.f = AMB.h = AMB.p = 0;
     if (AMB.arena){ for (const [o, i0, c0, g0] of AMB.arena.lights){ o.intensity = i0; o.color.copy(c0); if (g0) o.groundColor.copy(g0); }
       scene.fog.color.copy(AMB.arena.fog[0]); scene.fog.near = AMB.arena.fog[1]; scene.fog.far = AMB.arena.fog[2]; renderer.toneMappingExposure = AMB.arena.exposure;
@@ -2272,6 +2317,8 @@ const PROM = (() => {
     WHEAT_U.uT.value = t; WHEAT_U.uHorse.value.set(S.x, 0, S.z);
     for (const m of MIST){ m.position.x += Math.sin(t*.15 + m.userData.ph)*dt*.25; }
     beam.material.opacity = .45*AMB.k; CAVE_IN.value = AMB.k;
+    for (const m of DAYGLOW) m.material.opacity = .85*AMB.k;
+    if (inCave(S.x, S.z) && Math.hypot(S.x - xcx, S.z - xcz) < 22) toast('De la lumière au bout du passage… la sortie secrète', 'good', 'prom-exit', 120);
     beam.visible = fireflies.visible = AMB.k > .02;
     for (const v of CAVE_VEIL){ const [cx, cz] = v.userData.c; v.visible = Math.hypot(S.x - cx, S.z - cz) > 3.5 && !inCave(S.x, S.z); }
     // bougies et maison hantée
@@ -2286,7 +2333,7 @@ const PROM = (() => {
     if (HOUSE.blackout) HOUSE.light.intensity = 0;
     for (const e of HOUSE.eyes.children) e.material.opacity = AMB.h > .3 ? .6 + .4*Math.sin(t*3) : 0;
     if (dH < 26 && !HOUSE.seen){ HOUSE.seen = true; toast('Une maison abandonnée au cœur de la forêt… la porte est ouverte', 'warn', 'prom-house0', 600); }
-    sfxCd -= dt; if (sfxCd < 0){ sfxCd = 9 + Math.random()*14; if (AMB.f > .4) (Math.random() < .5 ? SFX.crow() : SFX.owl()); else if (AMB.p > .4) SFX.chime(); }
+    sfxCd -= dt; if (sfxCd < 0){ sfxCd = 9 + Math.random()*14; if (AMB.f > .4) (Math.random() < .5 ? SFX.crow() : SFX.owl());  }
     // clairière : papillons, poussière d'or, poissons, oiseaux
     if (AMB.p > .01 || platD(S.x, S.z) < 30){
       for (const s of FAIRY.flies){ const d = s.userData, a = t*d.sp + d.ph; s.position.set(d.x + Math.cos(a)*d.rad, groundH(d.x, d.z) + d.h + .4*Math.sin(t*2.3 + d.ph), d.z + Math.sin(a*1.3)*d.rad*.7); const w = Math.abs(Math.sin(t*14 + d.ph)); s.scale.set(.1 + .26*w, .3, 1); }
@@ -2322,7 +2369,7 @@ const PROM = (() => {
   const bridgeEnds = [[b0x - bdx*3, b0z - bdz*3], [b1x + bdx*3, b1z + bdz*3]];
   const walkable = (x, z) => !blockedWater(x, z) && Math.abs(x) < HX-2 && Math.abs(z) < HZ-2 && side(x, z) !== 0 && eastD(x, z) > 1 && seaD(x, z) > 0 && forestD(x, z) > 2 && bandD(x, z) > 2 && caveD(x, z) > 3 && !inHouse(x, z, -3);
   return { group, inForest: (x, z) => forestD(x, z) < 0, inWheat, walkY, groundH, onSand: (x, z) => lay('sand', x, z) > .5 && seaD(x, z) > 0 && lakeD(x, z) > 0, riverD: (x, z) => Math.min(riverD(x, z), eastD(x, z), caveWD(x, z) + 1, seaD(x, z) + 1), onBridge, side, bridgeEnds, OBST, bodyPush, collide, animate, drawMap, resetAmbiance, inCave, inLake, walkable, camFix,
-    start:[gx + 4, gz], HX, HZ, cliff:[cfx, cfz], cave:[scx, scz], bigFall: FAIRY.bigFall, edgeN: EDGE.length, crea: CREA };
+    start:[gx + 4, gz], HX, HZ, cliff:[cfx, cfz], cave:[scx, scz], bigFall: FAIRY.bigFall, edgeN: EDGE.length, crea: CREA, music: MUSIC, stopMusic: () => MUSIC.stop() };
 })();
 
 let promY = 0;
@@ -3961,7 +4008,7 @@ function start(m){
   else toast(`${H.name} est sellé. Bonne monte.`, '');
 }
 function openMenu(){
-  playing = false; keys.clear(); Sound.slide(0);
+  playing = false; keys.clear(); Sound.slide(0); if (typeof PROM !== 'undefined') PROM.stopMusic();
   for (const id of ['#hudTL','#hudTR','#legend','#topBtns','#touch']) $(id).hidden = true;
   $('#sheet').hidden = true; renderMenu(); $('#menu').hidden = false;
 }
