@@ -1,7 +1,5 @@
 <!doctype html>
-<html lang="fr">
-<head>
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta charset="utf-8">
 <title>Reining CJ Horses</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -173,9 +171,7 @@ td small{display:block;font-family:var(--f-body);font-size:12.5px;color:#6b4a2d;
 
 @media (prefers-reduced-motion:reduce){.toast{animation:none}.card{transition:none}}
 </style>
-
-</head>
-<body>
+</head><body>
 
 
 <div id="stage"></div>
@@ -2124,9 +2120,17 @@ const PROM = (() => {
       const fit = (o, H) => { const b = new THREE.Box3().setFromObject(o), s = new THREE.Vector3(); b.getSize(s); o.scale.multiplyScalar(H/s.y); const b2 = new THREE.Box3().setFromObject(o), c = new THREE.Vector3(); b2.getCenter(c); const inner = new THREE.Group(); o.position.set(-c.x, -b2.min.y, -c.z); inner.add(o); return inner; };
       const prep = o => o.traverse(m => { if (m.isMesh){ m.castShadow = true; m.frustumCulled = false; } });
       parse('rabbit', g => {
-        for (let i=0;i<7;i++){ const src = i ? THREE.SkeletonUtils.clone(g.scene) : g.scene; prep(src); const root = fit(src, .5); const mx = new THREE.AnimationMixer(src), act = mx.clipAction(g.animations[0]); act.play();
-          let x, z, k = 0; do { if (i < 3){ x = xcx + 8 + Math.random()*16; z = xcz + (Math.random()-.5)*18; } else [x, z] = platZone(); k++; } while ((platD(x, z) > -3 || turqD(x, z) < 3 || OBST.some(([a, b, rr]) => Math.hypot(a-x, b-z) < rr + 1)) && k < 300);
-          root.position.set(x, groundH(x, z), z); group.add(root); CREA.rabbits.push({ root, mx, act, hx:x, hz:z, x, z, yaw:Math.random()*6.3, tx:x, tz:z, idle:Math.random()*3, flee:0, v:0 }); }
+        const clairOK = (x, z) => platD(x, z) < -3 && turqD(x, z) > 1.5;
+        const preOK = (x, z) => inBox(x*1.06, z*1.06) && forestD(x, z) > 5 && lay('sand', x, z) < .25 && lakeD(x, z) > 2.5 && seaD(x, z) > 4 && riverD(x, z) > 2.5 && eastD(x, z) > 2.5 && caveD(x, z) > 6 && bandD(x, z) > 3 && platD(x, z) > 4 && darkD(x, z) > 3 && turqD(x, z) > 2.5 && !inWheat(x, z, 1);
+        const N = 7 + 12, prePts = [];
+        for (let i=0;i<N;i++){ const src = i ? THREE.SkeletonUtils.clone(g.scene) : g.scene; prep(src); const root = fit(src, .5); const mx = new THREE.AnimationMixer(src), act = mx.clipAction(g.animations[0]); act.play(); act.time = Math.random()*act.getClip().duration;
+          const pre = i >= 7; let x, z, k = 0, bad;
+          do { if (pre){ x = (Math.random()*2-1)*HX*.92; z = (Math.random()*2-1)*HZ*.92; bad = !preOK(x, z) || prePts.some(([a, b]) => Math.hypot(a-x, b-z) < 28) || Math.hypot(x - S.x, z - S.z) < 6; }
+               else { if (i < 3){ x = xcx + 8 + Math.random()*16; z = xcz + (Math.random()-.5)*18; } else [x, z] = platZone(); bad = platD(x, z) > -3 || turqD(x, z) < 3; }
+               bad = bad || OBST.some(([a, b, rr]) => Math.hypot(a-x, b-z) < rr + 1); k++; } while (bad && k < 900);
+          if (bad && pre) continue;
+          if (pre) prePts.push([x, z]);
+          root.position.set(x, groundH(x, z), z); group.add(root); CREA.rabbits.push({ root, mx, act, hx:x, hz:z, x, z, yaw:Math.random()*6.3, tx:x, tz:z, idle:Math.random()*3, flee:0, v:0, ok: pre ? preOK : clairOK, roam: pre ? 26 : 20 }); }
       });
       parse('deer', g => {
         prep(g.scene); const root = fit(g.scene, 2.9); const mx = new THREE.AnimationMixer(g.scene); mx.clipAction(g.animations[0]).play();
@@ -2191,10 +2195,10 @@ const PROM = (() => {
       if (dh < 4.5 && R.flee <= 0){ const a = Math.atan2(R.x - S.x, R.z - S.z); R.tx = R.x + Math.sin(a)*7; R.tz = R.z + Math.cos(a)*7; R.flee = 1.6; }
       R.flee -= dt;
       const dx = R.tx - R.x, dz = R.tz - R.z, d = Math.hypot(dx, dz);
-      if (d < .3){ R.v = 0; R.idle -= dt; if (R.idle <= 0){ for (let k=0;k<20;k++){ const nx = R.hx + (Math.random()-.5)*20, nz = R.hz + (Math.random()-.5)*20; if (platD(nx, nz) < -3 && turqD(nx, nz) > 1.5){ R.tx = nx; R.tz = nz; break; } } R.idle = 1 + Math.random()*4; } }
+      if (d < .3){ R.v = 0; R.idle -= dt; if (R.idle <= 0){ for (let k=0;k<20;k++){ const nx = R.hx + (Math.random()-.5)*R.roam, nz = R.hz + (Math.random()-.5)*R.roam; if (R.ok(nx, nz) && !OBST.some(([a, b, rr]) => Math.hypot(a-nx, b-nz) < rr + .4)){ R.tx = nx; R.tz = nz; break; } } R.idle = 1 + Math.random()*4; } }
       else { const want = Math.atan2(dx, dz); let da = want - R.yaw; while (da > Math.PI) da -= 2*Math.PI; while (da < -Math.PI) da += 2*Math.PI; R.yaw += da*Math.min(1, dt*6);
         const sp = R.flee > 0 ? 3.2 : 1.1; R.v = sp; const nx = R.x + Math.sin(R.yaw)*sp*dt, nz = R.z + Math.cos(R.yaw)*sp*dt;
-        if (platD(nx, nz) > -2.5 || turqD(nx, nz) < .8){ R.tx = R.x; R.tz = R.z; } else { R.x = nx; R.z = nz; } }
+        if (!R.ok(nx, nz) && R.ok(R.x, R.z)){ R.tx = R.x; R.tz = R.z; R.flee = 0; } else { R.x = nx; R.z = nz; } }
       R.act.paused = R.v === 0; R.act.timeScale = R.v > 2 ? 1.6 : 1; R.mx.update(dt);
       R.root.position.set(R.x, groundH(R.x, R.z), R.z); R.root.rotation.y = R.yaw;
     }
@@ -4129,5 +4133,4 @@ resetState(); buildHorse(HORSES[selected]); resize(); loadModel();
 requestAnimationFrame(loop);
 </script>
 
-</body>
-</html>
+</body></html>
