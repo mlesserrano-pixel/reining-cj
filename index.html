@@ -256,7 +256,7 @@ td small{display:block;font-family:var(--f-body);font-size:12.5px;color:#6b4a2d;
       </div>
       <div>
         <h2>Le pattern de reining</h2>
-        <p>Le pattern officiel du 4-H de l'État de Washington (approuvé en mars 2025). Départ au centre, face au mur du juge. Deux spins à droite puis deux à gauche, avec une hésitation après chaque série. Deux cercles à droite, le premier grand et rapide, le second petit et lent, changement de pied au centre, puis la même chose à gauche. Grand cercle à droite sans le refermer, descente le long du grand côté opposé au juge, stop après le marqueur bleu du centre et rollback à gauche. On remonte, on tourne au fond et on descend côté juge pour un rollback à droite, à au moins 6 m du mur. Dernière descente côté opposé, sliding stop, reculer, et une seconde d'immobilité pour finir. Les tracés sont dessinés au sol.</p>
+        <p>Le parcours C6. Départ au centre, face au juge assis au milieu du grand côté, et le galop se prend de l'arrêt ou du pas, jamais du trot. Un grand cercle rapide à droite puis un petit lent, arrêt au centre et pause, un spin à droite et pause. La même chose à gauche, arrêt au centre, un spin à gauche. On repart pied gauche sur un cercle qu'on ne referme pas, on contourne le fond, on remonte le grand côté opposé au juge et on s'arrête passé le repère bleu du centre pour un rollback à droite. On redescend pied droit, on contourne le fond, on remonte côté juge, arrêt après le centre, reculer d'au moins deux pas et une pause pour finir. Les tracés sont dessinés au sol.</p>
         <h2>Le pattern de ranch riding</h2>
         <p>Celui du club, en douze manœuvres, où l'on juge un cheval de travail plutôt qu'un athlète : trot allongé depuis le bas de la piste, arrêt et rollback à droite, galop à droite puis galop allongé sur tout le tour, jog, pas, passage au pas sur quatre barres au sol espacées de 75 cm, jog jusqu'en haut, arrêt et pivot de 360° à gauche, galop à gauche sur le grand côté, arrêt et reculer. Le tracé est peint au sol avec la légende de la feuille : pointillés pour le pas, tirets pour le jog, longs tirets pour le trot allongé, trait fin pour le galop, trait épais pour le galop allongé. Rupture d'allure, mauvais pied, barre touchée ou tracé approximatif coûtent des points, comme en concours. Le bétail en option est resté au pré.</p>
       </div>
@@ -374,7 +374,7 @@ const store = {
   get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 };
-let records = store.get('cj-records') || {};
+let records = store.get('cj-records-c6') || {};
 var rrecords = store.get('cj-records-ranch') || {};
 
 /* =========================================================
@@ -853,23 +853,33 @@ function buildPatternGround(){
   }
   // centre : spins et arrêts
   const c = part('center'); ring(c, 0, 1.1, false); strip(c, 0, 0, .14, 1.6); strip(c, 0, 0, 1.6, .14);
-  // descentes : grand tour du fond côté juge (−z) sans refermer le cercle, puis les deux grands côtés vers le fond +z
-  const rd = part('rund'), LX = 12, ZT = -20, ZS = L - 6;
-  { const m = new THREE.Mesh(new THREE.RingGeometry(LX-.08, LX+.08, 96, 1, 0, Math.PI), mat(.8)); m.rotation.x = -Math.PI/2; m.position.set(0, .03, ZT); rd.add(m); }
-  for (const sx of [-1, 1]){
-    strip(rd, sx*LX, (ZT + ZS - 2)/2, .16, ZS - 2 - ZT);
-    arrow(rd, sx*LX, -8, 0); arrow(rd, sx*LX, 10, Math.PI); arrow(rd, sx*LX, 20, Math.PI);   // on remonte vers le fond −z, on descend vers +z
-    for (let k=0;k<7;k++){ const a = k/6*Math.PI; const r = 1.6; strip(rd, sx*(LX + r - Math.cos(a)*r), ZS - 2 + Math.sin(a)*r*.9, .32, .14); }   // rollback, vers le mur
-    strip(rd, sx*LX, 0, 3, .14);                                  // à hauteur du marqueur bleu du centre
-  }
-  strip(rd, 0, ZS, 2*W - 4, .1);                                    // ne pas s'arrêter au-delà : 6 m du mur
+  // descentes du C6 : on contourne le fond +z et on remonte vers −z. Piste intérieure pour la descente avec rollback, extérieure pour la dernière.
+  const ZT = 22, ZS = -(L - 6);
+  const track = (tag, LX, dirFar, dirJudge) => {
+    const g = part(tag);
+    { const m = new THREE.Mesh(new THREE.RingGeometry(LX-.08, LX+.08, 96, 1, Math.PI, Math.PI), mat(.8)); m.rotation.x = -Math.PI/2; m.position.set(0, .03, ZT); g.add(m); }
+    for (const sx of [-1, 1]){
+      const fromCenter = tag==='rund' && sx < 0;   // la descente avec rollback part du centre vers le juge
+      const z0 = fromCenter ? -1 : ZS + 2, z1 = ZT; strip(g, sx*LX, (z0 + z1)/2, .16, z1 - z0);
+      const dir = sx > 0 ? dirFar : dirJudge;     // 0 : on remonte vers −z, π : on descend vers +z
+      for (const z of (fromCenter ? [5, 15] : [-14, 2, 15])) arrow(g, sx*LX + (sx > 0 ? .6 : -.6), z, dir);
+    }
+    strip(g, 0, ZS, 2*W - 4, .1);                  // 6 m du mur : ne pas s'arrêter au-delà
+    return g;
+  };
+  const r1 = track('rund', 10.5, 0, Math.PI);     // départ vers le juge, fond, remontée côté opposé
+  for (let k=0;k<7;k++){ const a = k/6*Math.PI, r = 1.2; strip(r1, 10.5 + r - Math.cos(a)*r, ZS + 3 - Math.sin(a)*r*.9, .32, .14); }   // le crochet du rollback à droite, vers la piste extérieure
+  strip(r1, 10.5, 0, 3, .14);
+  const r2 = track('final', 13, Math.PI, 0);       // redescente côté opposé, fond, remontée côté juge
+  strip(r2, -13, 0, 3, .14);
+  for (let k=0;k<3;k++) strip(r2, -13 + (k%2 ? .25 : -.25), ZS + 4 + k*.8, .5, .12);   // marques du reculer
 }
 function updatePatternGround(){
   if (!patternGround) return;
   patternGround.visible = mode==='pattern';
   if (mode!=='pattern') return;
   const m = MANEUVERS[P.idx], id = m ? m.id : '';
-  const on = tag => tag==='center' ? true : tag==='rund' ? /rund|final/.test(id) : tag===id;
+  const on = tag => tag==='center' ? true : tag==='circR' ? /R$/.test(id) : tag==='circL' ? /L$/.test(id) : tag===id;
   for (const g of patternGround.children){ const k = on(g.userData.tag) ? 1 : .28; g.traverse(o => { if (o.material) o.material.opacity = (o.material.userData.base ??= o.material.opacity) * k; }); }
 }
 // Banderoles sur le pare-bottes (après chargement des polices)
@@ -3385,7 +3395,7 @@ function updateRide(dt, d){
     const legs = held('legs');
     const recentStop = S.sinceStop < 3;
     // dans les 3 secondes qui suivent un sliding stop : ← rollback à gauche, → rollback à droite
-    const rollWindow = mode==='ranch' ? ((RANCH[RR.idx]||{}).kind==='roll') : recentStop && !!S.lastStop && (mode!=='pattern' || /rund/.test((MANEUVERS[P.idx]||{}).id||''));
+    const rollWindow = mode==='ranch' ? ((RANCH[RR.idx]||{}).kind==='roll') : mode==='pattern' ? ((MANEUVERS[P.idx]||{}).id==='rund' && !!P.stop) : recentStop && !!S.lastStop;
     if (rollWindow && (hit('left') || hit('right'))){ startRollback(hit('left') && !hit('right') ? 1 : hit('right') && !hit('left') ? -1 : (d || 1)); return; }
     if (d && hit('up') && recentStop){ startRollback(d); return; }
     if (d && !rollWindow){ S.spinArm = (S.spinArm||0) + dt; if (S.spinArm > .2){ startSpin(d); return; } }
@@ -3720,21 +3730,22 @@ listeners.push((type, d)=>{
   if (type==='backupEnd' && d.dist>1) toast(`Reculer : ${fr(d.dist,1)} m`, '');
 });
 
-// Pattern officiel de reining (4-H de l'État de Washington, approuvé en mars 2025).
-// Départ au centre, face au mur des juges. Vu du juge : cercles à droite côté −z, à gauche côté +z,
-// descentes le long des grands côtés vers le fond +z, marqueur central (bleu) au milieu du grand côté.
+// Pattern de reining : parcours C6.
+// Départ au centre, face au juge assis au milieu du grand côté (−x). Vu du cavalier face au juge : cercles à droite côté −z, à gauche côté +z.
+// Descentes : on contourne le fond +z et on remonte vers −z, l'arrêt se fait après le repère bleu du centre (z < 0).
 const MANEUVERS = [
-  {id:'spinR',  label:'2 spins à droite, hésitation', hint:'Au centre, face au juge : maintenez <b>→</b> pour deux tours à droite, relâchez un peu avant le compte, puis restez immobile une seconde.'},
-  {id:'spinL',  label:'2 spins à gauche, hésitation', hint:'Maintenez <b>←</b> pour deux tours à gauche, relâchez un peu avant le compte, puis une seconde d\'immobilité.'},
-  {id:'circR',  label:'2 cercles à droite : 1 grand rapide, 1 petit lent, changement de pied au centre', hint:'Départ au petit galop pied droit (<b>→</b> maintenu puis <b>↑</b>). Premier cercle grand et rapide (<b>↑</b> galop allongé), le second petit et lent (<b>↓</b>), puis <b>C</b> au centre pour passer à gauche.'},
-  {id:'circL',  label:'2 cercles à gauche : 1 grand rapide, 1 petit lent, changement de pied au centre', hint:'Un grand cercle rapide à gauche, puis un petit lent, et <b>C</b> au centre pour repasser pied droit.'},
-  {id:'rund1',  label:'Grand cercle à droite sans le fermer, descente côté droit, rollback à gauche', hint:'Repartez sur le grand cercle à droite sans le fermer, descendez le grand côté opposé au juge au galop allongé, <b>Espace</b> après le marqueur bleu du centre, puis <b>←</b> dans les 3 secondes, sans hésiter.'},
-  {id:'rund2',  label:'Descente côté gauche, rollback à droite', hint:'Remontez, tournez au fond sans fermer le cercle et descendez le côté du juge. <b>Espace</b> après le marqueur bleu, à au moins 6 m du mur, puis <b>→</b> dans les 3 secondes.'},
-  {id:'final',  label:'Descente côté droit, sliding stop, reculer, hésitation', hint:'Dernier tour du fond, descente côté opposé au juge, sliding stop après le marqueur bleu et à au moins 6 m du mur, puis <b>↓</b> maintenu pour reculer d\'au moins 3 m. Immobile une seconde pour finir.'},
+  {id:'bigR',   label:'Galop à droite, un grand cercle rapide', hint:'Au centre, face au juge. Le départ au galop se prend de l\'arrêt ou du pas : <b>↑</b> pour le pas, puis <b>→</b> tenu et <b>Maj</b>+<b>↑↑</b> pour partir pied droit. <b>↑</b> encore pour le galop allongé : un grand cercle rapide côté droit.'},
+  {id:'smallR', label:'Petit cercle lent à droite, arrêt au centre, pause', hint:'Sans quitter le galop, <b>↓</b> pour un petit cercle lent. De retour au centre, <b>Espace</b> pour l\'arrêt et une seconde d\'immobilité.'},
+  {id:'spinR',  label:'Un spin à droite, pause', hint:'Maintenez <b>→</b> pour un tour complet, relâchez un peu avant le compte, puis restez immobile une seconde.'},
+  {id:'bigL',   label:'Galop à gauche, un grand cercle rapide', hint:'Départ pied gauche (<b>↑</b> pour le pas, puis <b>←</b> tenu et <b>Maj</b>+<b>↑↑</b>), <b>↑</b> pour le galop allongé : un grand cercle rapide côté gauche.'},
+  {id:'smallL', label:'Petit cercle lent à gauche, arrêt au centre, pause', hint:'Toujours au galop, <b>↓</b> pour le petit cercle lent, puis <b>Espace</b> au centre et une seconde d\'immobilité.'},
+  {id:'spinL',  label:'Un spin à gauche', hint:'Maintenez <b>←</b> pour un tour complet et relâchez un peu avant le compte.'},
+  {id:'rund',   label:'Galop à gauche, cercle commencé sans le fermer, arrêt après le centre, rollback à droite', hint:'Départ pied gauche vers le juge, tournez vers le fond sans refermer le cercle, remontez le grand côté opposé au juge au galop allongé. <b>Espace</b> une fois passé le repère bleu du centre, puis <b>→</b> dans les 3 secondes.'},
+  {id:'final',  label:'Galop à droite, tour du fond, arrêt après le centre, reculer, pause', hint:'Le rollback vous relance pied droit : redescendez, contournez le fond et remontez côté juge. <b>Espace</b> passé le repère bleu, à au moins 6 m du mur, puis <b>↓</b> maintenu pour reculer d\'au moins 2 pas. Immobile une seconde pour finir.'},
 ];
-const P = { idx:0, scores:[], pens:[], notes:[], done:false, c:null };
+const P = { idx:0, scores:[], pens:[], notes:[], done:false, k:null };
 function patternReset(){
-  Object.assign(P, { idx:0, scores:MANEUVERS.map(()=>null), pens:MANEUVERS.map(()=>0), notes:MANEUVERS.map(()=>[]), done:false, c:null, hes:null, stop:null, run:null });
+  Object.assign(P, { idx:0, scores:MANEUVERS.map(()=>null), pens:MANEUVERS.map(()=>0), notes:MANEUVERS.map(()=>[]), done:false, k:null, hes:null, stop:null, run:null, trotT:0, leadT:0, leadPen:false });
   renderPattern();
 }
 function pen(i, v, note){ P.pens[i] += v; P.notes[i].push(`${note} (−${fr(v,1)})`); }
@@ -3743,64 +3754,79 @@ function finish(i, raw, extra=[]){
   P.notes[i].unshift(...extra);
   const total = P.scores[i] - P.pens[i];
   toast(`${MANEUVERS[i].label} : ${fmtScore(P.scores[i])}${P.pens[i]?' , pénalités '+fr(P.pens[i],1):''}`, total>=0?'good':'warn');
-  P.idx = i+1; P.c = null; P.stop = null; P.hes = null; P.run = null;
+  P.idx = i+1; P.stop = null; P.hes = null; P.run = null; P.leadT = 0; P.leadPen = false;
   if (P.idx >= MANEUVERS.length) endPattern();
   renderPattern();
 }
-function spinScore(d, i, needDir){
+function spinScore(d, i, needDir, hes){
   const extra = [];
   if (d.dir !== needDir){ toast(`Mauvais sens : ${MANEUVERS[i].label}`, 'warn'); return; }
-  const off = (d.revs - 2)*360;
-  let raw = d.avg >= .43 ? 1 : d.avg >= .37 ? .5 : d.avg >= .29 ? 0 : -.5;
+  const off = (d.revs - 1)*360;
+  let raw = d.avg >= .38 ? 1 : d.avg >= .32 ? .5 : d.avg >= .25 ? 0 : -.5;   // un seul tour : le cheval n'a pas le temps d'atteindre sa pleine vitesse
   if (d.drift > .7) { raw -= .5; extra.push('Pivot qui se déplace'); }
-  if (d.peak - d.avg > .16) { raw -= .5; extra.push('Vitesse irrégulière'); }
+  if (d.peak - d.avg > .24) { raw -= .5; extra.push('Vitesse irrégulière'); }
   extra.unshift(`${fmtRevs(d.revs)} à ${fr(d.avg,2)} tour/s`);
   const a = Math.abs(off);
   if (a > 90) pen(i, a>180 ? 2 : 1, off>0?'Sur-rotation de plus d\'un quart de tour':'Sous-rotation de plus d\'un quart de tour');
   else if (a > 45) pen(i, .5, off>0?'Sur-rotation entre 1/8 et 1/4 de tour':'Sous-rotation entre 1/8 et 1/4 de tour');
-  if (H.anticipate && off > 30) { raw -= .5; extra.push('Cameron anticipe la fin des spins'); }
-  P.hes = { raw, extra, t:0 };     // la note tombe après l'hésitation demandée
-  toast('Hésitation : restez immobile une seconde', '');
+  if (H.anticipate && off > 30) { raw -= .5; extra.push('Cameron anticipe la fin du spin'); }
+  if (!hes){ finish(i, raw, extra); return; }
+  P.hes = { raw, extra, t:0 };     // la note tombe après la pause demandée
+  toast('Pause : restez immobile une seconde', '');
+}
+const cAvg = a => a.length ? a.reduce((s,v)=>s+v,0)/a.length : 0;
+const cRound = pts => { if (pts.length<8) return 1; const mx=cAvg(pts.map(p=>p[0])), mz=cAvg(pts.map(p=>p[1])); const r=pts.map(p=>Math.hypot(p[0]-mx,p[1]-mz)); const m=cAvg(r); return Math.sqrt(cAvg(r.map(v=>(v-m)**2)))/m; };
+const cRad = pts => { if (pts.length<8) return 0; const mx=cAvg(pts.map(p=>p[0])), mz=cAvg(pts.map(p=>p[1])); return cAvg(pts.map(p=>Math.hypot(p[0]-mx,p[1]-mz))); };
+function startCircles(need){
+  P.k = { need, accum:0, out:0, dis:0, sp:[[],[]], pts:[[],[]], awaitStop:false, extra:0, stopped:null, broke:false, breakT:0 };
+}
+function departCheck(i){   // le galop se prend de l'arrêt ou du pas
+  if (P.trotT > 1) pen(i, .5, 'Départ au galop pris du trot');
+}
+function closeBig(i){
+  const k = P.k, extra = [], a1 = cAvg(k.sp[0]);
+  let raw = 0;
+  extra.push(`Grand cercle à ${Math.round(a1*3.6)} km/h`);
+  if (a1 >= 6.3) raw += .5; else if (a1 < 5) { raw -= .5; extra.push('Grand cercle trop lent'); }
+  const rd = cRound(k.pts[0]);
+  if (rd < .16) raw += .5; else if (rd > .32) { raw -= .5; extra.push('Cercle peu rond'); }
+  if (k.dis > .6) { raw -= .5; extra.push('Galop désuni'); }
+  if (k.out > .4) pen(i, Math.min(3, Math.ceil(k.out/1.5)), 'Galop sur le mauvais pied');
+  k.out = 0; k.dis = 0;
+  finish(i, raw, extra);
+}
+function closeSmall(i){
+  const k = P.k, extra = [], a1 = cAvg(k.sp[0]), a2 = cAvg(k.sp[1]);
+  let raw = 0;
+  extra.push(`Petit cercle à ${Math.round(a2*3.6)} km/h`);
+  if (a1 - a2 >= 1.6) raw += .5; else extra.push('Pas assez de différence de vitesse avec le grand');
+  const rd = cRound(k.pts[1]);
+  if (rd < .16) raw += .5; else if (rd > .32) { raw -= .5; extra.push('Cercle peu rond'); }
+  if (cRad(k.pts[0]) && cRad(k.pts[1]) && cRad(k.pts[1]) > cRad(k.pts[0])*.85) { raw -= .5; extra.push('Petit cercle pas assez petit'); }
+  if (k.dis > .6) { raw -= .5; extra.push('Galop désuni'); }
+  if (k.out > .4) pen(i, Math.min(3, Math.ceil(k.out/1.5)), 'Galop sur le mauvais pied');
+  if (k.stopped && k.stopped.slide) { raw += .5; extra.push('Arrêt glissé au centre'); }
+  P.k = null;
+  finish(i, raw, extra);
 }
 listeners.push((type, d)=>{
   if (mode!=='pattern' || P.done) return;
   const i = P.idx, m = MANEUVERS[i]; if (!m) return;
-  if (m.id==='spinR' && type==='spinEnd' && !P.hes) spinScore(d, i, -1);
-  else if (m.id==='spinL' && type==='spinEnd' && !P.hes) spinScore(d, i, 1);
-  else if ((m.id==='spinR' || m.id==='spinL') && P.hes && (type==='lopeDepart' || type==='spinStart')){ pen(i, .5, 'Pas d\'hésitation'); finish(i, P.hes.raw, P.hes.extra); }
-  else if ((m.id==='circR' || m.id==='circL')){
-    const need = m.id==='circR' ? 'R' : 'L';
-    if (type==='lopeDepart' && !P.c){ startCircles(need); if (d.lead!==need) P.c.badDepart = true; if (Math.hypot(S.x, S.z) > 4) pen(i, .5, 'Départ loin du centre'); }
-    if (type==='leadChange' && P.c){
-      const c = P.c;
-      if (!c.awaitChange){ pen(i, .5, 'Changement de pied anticipé'); }
-      else {
-        if (Math.hypot(S.x, S.z) > 6) pen(i, .5, 'Changement de pied loin du centre');
-        if (!d.clean) pen(i, 1, 'Changement incomplet');
-        closeCircles(i);
-        if (need==='R') startCircles('L');     // on enchaîne directement les cercles à gauche
-      }
-    }
+  if (m.id==='spinR' && type==='spinEnd' && !P.hes) spinScore(d, i, -1, true);
+  else if (m.id==='spinL' && type==='spinEnd') spinScore(d, i, 1, false);
+  else if (m.id==='spinR' && P.hes && type==='lopeDepart'){ pen(i, .5, 'Pas de pause'); finish(i, P.hes.raw, P.hes.extra); }
+  else if ((m.id==='bigR' || m.id==='bigL') && type==='lopeDepart' && !P.k){
+    startCircles(m.id==='bigR' ? 'R' : 'L'); departCheck(i);
+    if (Math.hypot(S.x, S.z) > 4) pen(i, .5, 'Départ loin du centre');
   }
-  else if (/rund|final/.test(m.id) && type==='slideEnd'){
-    const side = m.id==='rund2' ? -1 : 1;     // −1 : côté du juge, +1 : côté opposé
-    const extra = [`Stop de ${fr(d.dist,1)} m lancé à ${Math.round(d.v0*3.6)} km/h`];
-    let raw = 0;
-    if (d.v0 >= 8) raw += .5; else if (d.v0 < 6.5) { raw -= .5; extra.push('Descente trop lente'); }
-    if (d.dist >= 2.25) raw += .5; else if (d.dist < 1.2) { raw -= .5; extra.push('Stop court'); }
-    if (d.dev < 4) raw += .5; else if (d.dev > 10) { raw -= .5; extra.push('Stop de travers'); }
-    if (Math.sign(S.x) !== side || Math.abs(S.x) < 4) pen(i, 2, side>0 ? 'Descente du mauvais côté (côté opposé au juge demandé)' : 'Descente du mauvais côté (côté du juge demandé)');
-    if (S.z < 0) pen(i, .5, 'Stop avant le marqueur du centre');
-    if (S.z > L - 6) pen(i, .5, 'Stop à moins de 6 m du mur');
-    if (P.run && P.run.closed) pen(i, 1, 'Cercle refermé avant la descente');
-    P.stop = { raw, extra, t:0 };
-  }
-  else if ((m.id==='rund1' || m.id==='rund2') && type==='rollback' && P.stop){
-    const need = m.id==='rund1' ? 1 : -1;
+  else if ((m.id==='smallR' || m.id==='smallL') && type==='slideEnd' && P.k) P.k.slid = true;
+  else if (m.id==='rund' && type==='lopeDepart' && !P.dep){ P.dep = true; departCheck(i); }
+  else if ((m.id==='rund' || m.id==='final') && type==='slideEnd' && !P.stop) makeStop(i, m, d);
+  else if (m.id==='rund' && type==='rollback' && P.stop){
     let { raw, extra } = P.stop;
-    if (d.dir !== need){ extra.push('Rollback du mauvais côté'); if (d.auto) pen(i, .5, 'Anticipation'); finish(i, -1.5, extra); return; }
+    if (d.dir !== -1){ extra.push('Rollback du mauvais côté'); if (d.auto) pen(i, .5, 'Anticipation'); finish(i, -1.5, extra); return; }
     if (d.dur < .62) raw += .5;
-    if (d.delay > 1.2) { raw -= .5; extra.push('Hésitation avant le rollback'); }
+    if (P.stop.t > 1.2) { raw -= .5; extra.push('Hésitation avant le rollback'); }
     if (d.auto) pen(i, .5, 'Anticipation');
     extra.push(`Rollback en ${fr(d.dur,2)} s`);
     finish(i, raw/1.5, extra);
@@ -3812,65 +3838,80 @@ listeners.push((type, d)=>{
     pen(i, 1, 'Pas de reculer'); finish(i, P.stop.raw/1.5 - .5, P.stop.extra);
   }
 });
-function startCircles(need){
-  P.c = { need, accum:0, out:0, dis:0, sp:[[],[]], pts:[[],[]], awaitChange:false, extra:0, badDepart:false };
-}
-function closeCircles(i){
-  const c = P.c, extra = [];
-  const avg = a => a.length ? a.reduce((s,v)=>s+v,0)/a.length : 0;
-  const a1 = avg(c.sp[0]), a2 = avg(c.sp[1]);     // a1 : grand cercle rapide, a2 : petit cercle lent
+// arrêt des descentes : glissé (sliding stop) ou simple arrêt depuis le galop
+function makeStop(i, m, d){
+  const side = m.id==='rund' ? 1 : -1;     // +1 : grand côté opposé au juge, −1 : côté du juge
+  const extra = [];
   let raw = 0;
-  extra.push(`Grand cercle ${Math.round(a1*3.6)} km/h, petit ${Math.round(a2*3.6)} km/h`);
-  if (a1 - a2 >= 1.6) raw += .5; else extra.push('Pas assez de différence de vitesse');
-  if (a1 >= 6.3) raw += .5;
-  const cv = pts => { if (pts.length<8) return 1; const mx=avg(pts.map(p=>p[0])), mz=avg(pts.map(p=>p[1])); const r=pts.map(p=>Math.hypot(p[0]-mx,p[1]-mz)); const m=avg(r); const sd=Math.sqrt(avg(r.map(v=>(v-m)**2))); return sd/m; };
-  const rad = pts => { if (pts.length<8) return 0; const mx=avg(pts.map(p=>p[0])), mz=avg(pts.map(p=>p[1])); return avg(pts.map(p=>Math.hypot(p[0]-mx,p[1]-mz))); };
-  const round = Math.max(cv(c.pts[0]), cv(c.pts[1]));
-  if (round < .16) raw += .5; else if (round > .32) { raw -= .5; extra.push('Cercles peu ronds'); }
-  if (rad(c.pts[0]) && rad(c.pts[1]) && rad(c.pts[1]) > rad(c.pts[0])*.85) { raw -= .5; extra.push('Petit cercle pas assez petit'); }
-  if (c.dis > .6) { raw -= .5; extra.push('Galop désuni'); }
-  if (c.badDepart) extra.push('Départ au mauvais pied');
-  if (c.out > .4) pen(i, Math.min(3, Math.ceil(c.out/1.5)), 'Galop sur le mauvais pied');
-  finish(i, raw, extra);
+  if (d){
+    extra.push(`Stop de ${fr(d.dist,1)} m lancé à ${Math.round(d.v0*3.6)} km/h`);
+    if (d.v0 >= 8) raw += .5; else if (d.v0 < 6.5) { raw -= .5; extra.push('Descente trop lente'); }
+    if (d.dist >= 2.25) raw += .5; else if (d.dist < 1.2) { raw -= .5; extra.push('Stop court'); }
+    if (d.dev < 4) raw += .5; else if (d.dev > 10) { raw -= .5; extra.push('Stop de travers'); }
+  } else { raw -= 1; extra.push('Arrêt sans glissade'); }
+  if (Math.sign(S.x) !== side || Math.abs(S.x) < 4) pen(i, 2, side>0 ? 'Descente du mauvais côté (côté opposé au juge demandé)' : 'Descente du mauvais côté (côté du juge demandé)');
+  if (S.z > 0) pen(i, .5, 'Arrêt avant le repère du centre');
+  if (S.z < -(L - 6)) pen(i, .5, 'Arrêt à moins de 6 m du mur');
+  if (P.run && !P.run.bottom) pen(i, 2, 'Le fond de la carrière n\'a pas été contourné');
+  if (P.run && P.run.closed) pen(i, 1, 'Cercle refermé avant la descente');
+  P.stop = { raw, extra, t:0 };
 }
 function patternTick(dt){
   if (mode!=='pattern' || P.done) return;
   const i = P.idx, m = MANEUVERS[i]; if (!m) return;
-  if (P.hes && (m.id==='spinR' || m.id==='spinL')){
+  // trot juste avant le départ au galop (interdit : arrêt ou pas)
+  if (S.mode==='ride'){ if (S.gait===2 || S.gait===3) P.trotT += dt; else if (S.gait<2) P.trotT = 0; }
+  if (P.hes && m.id==='spinR'){
     if (S.mode==='ride' && S.stillT > 1) finish(i, P.hes.raw, P.hes.extra);
-    else if (S.mode==='spin' && S.spin && S.spin.rate > .1){ pen(i, .5, 'Pas d\'hésitation'); finish(i, P.hes.raw, P.hes.extra); }
+    else if (S.mode==='spin' && S.spin && S.spin.rate > .1){ pen(i, .5, 'Pas de pause'); finish(i, P.hes.raw, P.hes.extra); }
   }
-  if (P.c && (m.id==='circR' || m.id==='circL')){
-    const c = P.c;
-    if (S.mode==='ride' && S.gait>=4){
+  // cercles : le grand rapide, puis le petit lent, et l'arrêt au centre
+  if (P.k && /big|small/.test(m.id)){
+    const k = P.k, small = /small/.test(m.id);
+    if (k.stopped){
+      if (S.stillT > 1) closeSmall(i);
+      else if (S.mode==='ride' && S.gait>=1){ pen(i, .5, 'Pas de pause'); closeSmall(i); }
+    } else if (S.mode==='ride' && S.gait>=4){
+      k.breakT = 0;
       const dy = (S.lastYawRate||0)*dt;
-      c.accum += c.need==='L' ? dy : -dy;
-      const k = c.accum < Math.PI*2 ? 0 : 1;
-      c.sp[k].push(S.v);
-      if (Math.random()<.25) c.pts[k].push([S.x,S.z]);
-      if (S.lead !== c.need && !(c.awaitChange)) c.out += dt;
-      if (S.disunited) c.dis += dt;
-      if (!c.toldSmall && k===1){ c.toldSmall = true; toast('Grand cercle bouclé : petit cercle lent (↓)', 'good'); }
-      if (!c.awaitChange && c.accum >= (720-25)*DEG){ c.awaitChange = true; toast('Deux cercles : changement de pied au centre (C)', 'good'); }
-      if (c.awaitChange){ c.extra = c.accum - (720-25)*DEG; if (c.extra > 150*DEG){ pen(i, 1, 'Changement de pied manqué'); const wasR = c.need==='R'; closeCircles(i); if (wasR) startCircles('L'); } }
-    } else if (S.mode==='ride' && S.gait<4 && c.accum > .5){
-      c.breakT = (c.breakT||0) + dt;
-      if (c.breakT > .8 && !c.broke){ c.broke = true; pen(i, 2, 'Rupture d\'allure'); }
+      k.accum += k.need==='L' ? dy : -dy;
+      const c = k.accum < Math.PI*2 ? 0 : 1;
+      k.sp[c].push(S.v);
+      if (Math.random()<.25) k.pts[c].push([S.x,S.z]);
+      if (S.lead !== k.need) k.out += dt;
+      if (S.disunited) k.dis += dt;
+      if (!small && c===1){ toast('Grand cercle bouclé : petit cercle lent (↓)', 'good'); closeBig(i); return; }
+      if (small && !k.awaitStop && k.accum >= (720-25)*DEG){ k.awaitStop = true; toast('Deux cercles : arrêt au centre (Espace)', 'good'); }
+      if (k.awaitStop){ k.extra = k.accum - (720-25)*DEG; if (k.extra > 150*DEG && !k.overrun){ k.overrun = true; pen(i, 1, 'Arrêt au centre manqué'); } }
+    } else if ((S.mode==='slide' || (S.mode==='ride' && S.gait===0)) && small && k.accum > Math.PI*2){
+      if (S.mode==='ride' && Math.abs(S.v) < .3){
+        k.stopped = { slide: !!k.slid };
+        if (!k.awaitStop) pen(i, 1, 'Petit cercle pas terminé');
+        if (Math.hypot(S.x, S.z) > 4) pen(i, .5, 'Arrêt loin du centre');
+        toast('Pause : restez immobile une seconde', '');
+      }
+    } else if (S.mode==='ride' && S.gait<4 && k.accum > .5){
+      k.breakT += dt;
+      if (k.breakT > .8 && !k.broke){ k.broke = true; pen(i, 2, 'Rupture d\'allure'); }
     }
   }
-  // descentes : le cercle ne doit pas se refermer au centre avant de partir sur le grand côté
-  if (/rund|final/.test(m.id) && !P.stop){
-    P.run = P.run || { closed:false, far:false };
+  // descentes : tour du fond sans refermer le cercle, puis arrêt après le centre
+  if ((m.id==='rund' || m.id==='final') && !P.stop){
+    P.run = P.run || { closed:false, far:false, bottom:false };
     if (Math.hypot(S.x, S.z) > 10) P.run.far = true;
-    if (P.run.far && S.gait>=4 && Math.hypot(S.x, S.z) < 3 && Math.abs(S.z) < 3) P.run.closed = true;
+    if (S.z > 14) P.run.bottom = true;
+    if (P.run.far && S.gait>=4 && Math.hypot(S.x, S.z) < 3) P.run.closed = true;
+    const need = m.id==='rund' ? 'L' : 'R';
+    if (S.mode==='ride' && S.gait>=4 && (S.lead !== need || S.disunited)){ P.leadT += dt; if (P.leadT > .8 && !P.leadPen){ P.leadPen = true; pen(i, 1, S.disunited ? 'Galop désuni' : 'Galop sur le mauvais pied'); } }
+    if (P.run.bottom && S.mode==='ride' && S.gait===0 && Math.abs(S.v) < .3) makeStop(i, m, null);   // arrêt sans glissade
   }
-  if (P.stop && (m.id==='rund1' || m.id==='rund2')){
+  if (P.stop && m.id==='rund'){
     P.stop.t += dt;
     if (P.stop.t > 3.5 && S.mode!=='rollback'){ const {raw, extra} = P.stop; extra.push('Pas de rollback'); finish(i, raw/1.5 - 1, extra); }
   }
   if (P.stop && m.id==='final'){
     const b = (P.stop.backup||0) + S.backup;
-    if (b >= 3 && S.stillT > 1){
+    if (b >= 1.5 && S.stillT > 1){
       let raw = P.stop.raw/1.5 + .5; const extra = [...P.stop.extra, `Reculer de ${fr(b,1)} m`];
       const t = (P.stop.backupT||0) + S.backupT; if (t>0 && b/t > 1.15) raw += .5;
       finish(i, raw, extra);
@@ -3883,7 +3924,7 @@ function renderPattern(){
   if (mode!=='pattern'){ $('#patternPanel').hidden = true; updatePatternGround(); return; }
   $('#patternPanel').hidden = false;
   const total = 70 + P.scores.reduce((s,v)=>s+(v||0),0) - P.pens.reduce((s,v)=>s+v,0);
-  $('#pattern').innerHTML = `<div class="ptitle">Pattern de reining</div>` + MANEUVERS.map((m,i)=>{
+  $('#pattern').innerHTML = `<div class="ptitle">Reining · parcours C6</div>` + MANEUVERS.map((m,i)=>{
     const s = P.scores[i], cls = i===P.idx ? 'now' : s!==null ? 'done' : '';
     const sc = s===null ? '' : `<span class="sc ${s>0?'pos':s<0?'neg':''}">${fmtScore(s)}${P.pens[i]?` <span class="neg">−${fr(P.pens[i],1)}</span>`:''}</span>`;
     return `<div class="mv ${cls}"><span class="n">${i+1}</span><span>${m.label}</span>${sc}</div>`;
@@ -3894,7 +3935,7 @@ function renderPattern(){
 }
 function endPattern(){
   P.done = true;
-  $('#sheetTitle').textContent = 'Pattern de reining';
+  $('#sheetTitle').textContent = 'Reining · parcours C6';
   const total = 70 + P.scores.reduce((s,v)=>s+(v||0),0) - P.pens.reduce((s,v)=>s+v,0);
   const rows = MANEUVERS.map((m,i)=>`<tr><td>${i+1}</td><td>${m.label}<small>${P.notes[i].join(' · ')||'Propre'}</small></td><td class="r">${fmtScore(P.scores[i]||0)}</td><td class="r">${P.pens[i]?'−'+fr(P.pens[i],1):''}</td></tr>`).join('');
   $('#sheetTable').innerHTML = `<thead><tr><th>#</th><th>Manœuvre</th><th class="r">Note</th><th class="r">Pén.</th></tr></thead><tbody>${rows}</tbody>`;
@@ -3906,7 +3947,7 @@ function endPattern(){
     : total >= 64 ? `Le juge a eu besoin d'un deuxième café. On reprend les fondamentaux et on y retourne.`
     : `Le juge a demandé si c'était une reprise de trail. Courage, ${H.name} vous attend au box.`;
   const prev = records[H.name];
-  if (!prev || total > prev){ records[H.name] = Math.round(total*10)/10; store.set('cj-records', records); if (prev) $('#sheetVerdict').textContent += ' Nouveau record personnel.'; }
+  if (!prev || total > prev){ records[H.name] = Math.round(total*10)/10; store.set('cj-records-c6', records); if (prev) $('#sheetVerdict').textContent += ' Nouveau record personnel.'; }
   setTimeout(()=>{ $('#sheet').hidden = false; playing = false; keys.clear(); $('#sheetAgain').focus(); }, 900);
 }
 
@@ -4414,7 +4455,7 @@ function start(m){
   for (const id of ['#hudTL','#hudTR','#legend','#topBtns','#touch']) $(id).hidden = false;
   playing = true; keys.clear(); pressed.clear();
   resize();
-  if (mode==='pattern') toast('Face au juge. Deux spins à droite pour commencer.', '');
+  if (mode==='pattern') toast('Parcours C6 : face au juge, départ au galop à droite pour le grand cercle.', '');
   else if (mode==='ranch') toast('Ranch riding : des allures franches, un tracé propre, et les barres au sol sans les toucher.', '');
   else if (mode==='promenade') toast(`Balade en extérieur avec ${H.name}. Le pont est au nord, la plage au sud-ouest, la forêt sombre au sud-est… et près de la cascade, la roche cache peut-être un secret.`, '');
   else toast(`${H.name} est sellé. Bonne monte.`, '');
