@@ -210,12 +210,13 @@ td small{display:block;font-family:var(--f-body);font-size:12.5px;color:#6b4a2d;
     <header class="masthead">
       <div class="eyebrow">CJ Horses · carrière western</div>
       <h1>Reining CJ Horses</h1>
-      <p class="lede">Douze chevaux du club, chacun avec ses vrais défauts, tirés du carnet de séances. Choisissez votre monture, puis partez en monte libre ou sur le pattern noté par le juge : base 70, chaque manœuvre de −1,5 à +1,5.</p>
+      <p class="lede">Douze chevaux du club, chacun avec ses vrais défauts, tirés du carnet de séances. Choisissez votre monture, puis partez en monte libre, sur le pattern de reining ou sur celui de ranch riding, notés par le juge : base 70, chaque manœuvre de −1,5 à +1,5.</p>
     </header>
     <div class="grid" id="horseGrid"></div>
     <div class="launch">
       <button class="btn primary" id="goFree" type="button">Monte libre</button>
-      <button class="btn" id="goPattern" type="button">Pattern noté</button>
+      <button class="btn" id="goPattern" type="button">Pattern reining</button>
+      <button class="btn" id="goRanch" type="button">Pattern ranch riding</button>
       <button class="btn" id="goWalk" type="button">Promenade</button>
       <span class="chosen" id="chosen"></span>
     </div>
@@ -256,6 +257,8 @@ td small{display:block;font-family:var(--f-body);font-size:12.5px;color:#6b4a2d;
       <div>
         <h2>Le pattern de reining</h2>
         <p>Le pattern officiel du 4-H de l'État de Washington (approuvé en mars 2025). Départ au centre, face au mur du juge. Deux spins à droite puis deux à gauche, avec une hésitation après chaque série. Deux cercles à droite, le premier grand et rapide, le second petit et lent, changement de pied au centre, puis la même chose à gauche. Grand cercle à droite sans le refermer, descente le long du grand côté opposé au juge, stop après le marqueur bleu du centre et rollback à gauche. On remonte, on tourne au fond et on descend côté juge pour un rollback à droite, à au moins 6 m du mur. Dernière descente côté opposé, sliding stop, reculer, et une seconde d'immobilité pour finir. Les tracés sont dessinés au sol.</p>
+        <h2>Le pattern de ranch riding</h2>
+        <p>Celui du club, en douze manœuvres, où l'on juge un cheval de travail plutôt qu'un athlète : trot allongé depuis le bas de la piste, arrêt et rollback à droite, galop à droite puis galop allongé sur tout le tour, jog, pas, passage au pas sur quatre barres au sol espacées de 75 cm, jog jusqu'en haut, arrêt et pivot de 360° à gauche, galop à gauche sur le grand côté, arrêt et reculer. Le tracé est peint au sol avec la légende de la feuille : pointillés pour le pas, tirets pour le jog, longs tirets pour le trot allongé, trait fin pour le galop, trait épais pour le galop allongé. Rupture d'allure, mauvais pied, barre touchée ou tracé approximatif coûtent des points, comme en concours. Le bétail en option est resté au pré.</p>
       </div>
       <div>
         <h2>Un mot sur les chevaux</h2>
@@ -372,6 +375,7 @@ const store = {
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 };
 let records = store.get('cj-records') || {};
+var rrecords = store.get('cj-records-ranch') || {};
 
 /* =========================================================
    Menu
@@ -391,11 +395,11 @@ function renderMenu(){
     b.className='card'; b.type='button'; b.id='horse-'+i;
     b.setAttribute('aria-pressed', i===selected ? 'true':'false');
     const age = h.born ? `${2026-h.born} ans` : 'âge inconnu';
-    const rec = records[h.name];
+    const rec = records[h.name], rr = rrecords[h.name];
     b.innerHTML = `<div class="card-top"><span class="coat" style="background:${coatCss(h.coat)}"></span><div><div class="card-name">${h.name}</div><div class="card-meta">${h.breed} · ${h.robe} · ${age}</div></div></div>
       <p class="card-text">${h.text}</p>
       <div class="stats">${labels.map(([l,k])=>`<span>${l}</span><span class="bar"><i style="width:${Math.round(h.st[k]*100)}%"></i></span>`).join('')}</div>
-      <div class="record">${rec ? 'Record pattern : '+fr(rec,1) : ''}${avisCount(h.name) ? `<span class="avis-count">${rec ? ' · ' : ''}${avisCount(h.name)} avis</span>` : ''}</div>`;
+      <div class="record">${rec ? 'Record reining : '+fr(rec,1) : ''}${rr ? (rec ? ' · ' : '')+'Record ranch : '+fr(rr,1) : ''}${avisCount(h.name) ? `<span class="avis-count">${rec || rr ? ' · ' : ''}${avisCount(h.name)} avis</span>` : ''}</div>`;
     b.addEventListener('click',()=>{selected=i;store.set('cj-horse',i);renderMenu();});
     g.appendChild(b);
   });
@@ -2440,6 +2444,7 @@ function setWorld(m){
   for (const o of ARENA_OBJS) o.visible = !out && (o !== patternGround || mode === 'pattern');
   PROM.group.visible = out;
   if (!out) PROM.resetAmbiance();
+  if (ranchGround) ranchGround.visible = !out && m === 'ranch';
   if (typeof TRACKS !== 'undefined'){ TRACKS.prints.m.visible = TRACKS.slides.m.visible = true; clearTracks(); }
 }
 
@@ -3344,7 +3349,7 @@ function update(dt){
   }
   // trace pour le plan
   if (!S.trail.length || Math.hypot(S.trail[S.trail.length-1][0]-S.x, S.trail[S.trail.length-1][1]-S.z) > .5){
-    S.trail.push([S.x,S.z]); if (S.trail.length > (mode==='pattern' ? 20000 : 900)) S.trail.shift();   // en pattern noté : tout le tracé, du début à la fin
+    S.trail.push([S.x,S.z]); if (S.trail.length > (mode==='pattern' || mode==='ranch' ? 20000 : 900)) S.trail.shift();   // en pattern noté : tout le tracé, du début à la fin
   }
   // immobilité (hésitation)
   const idle = S.mode==='ride' && S.gait===0 && Math.abs(S.v)<.05 && !d && !held('down') && !held('up');
@@ -3380,7 +3385,7 @@ function updateRide(dt, d){
     const legs = held('legs');
     const recentStop = S.sinceStop < 3;
     // dans les 3 secondes qui suivent un sliding stop : ← rollback à gauche, → rollback à droite
-    const rollWindow = recentStop && !!S.lastStop && (mode!=='pattern' || /rund/.test((MANEUVERS[P.idx]||{}).id||''));
+    const rollWindow = mode==='ranch' ? ((RANCH[RR.idx]||{}).kind==='roll') : recentStop && !!S.lastStop && (mode!=='pattern' || /rund/.test((MANEUVERS[P.idx]||{}).id||''));
     if (rollWindow && (hit('left') || hit('right'))){ startRollback(hit('left') && !hit('right') ? 1 : hit('right') && !hit('left') ? -1 : (d || 1)); return; }
     if (d && hit('up') && recentStop){ startRollback(d); return; }
     if (d && !rollWindow){ S.spinArm = (S.spinArm||0) + dt; if (S.spinArm > .2){ startSpin(d); return; } }
@@ -3691,6 +3696,7 @@ function drawMinimap(){
   mx.strokeStyle = 'rgba(245,236,215,.7)'; mx.lineWidth = 2; mx.strokeRect(pad,pad,w-pad*2,h-pad*2);
   for (const [z,c] of [[-MARK,'#e0702e'],[MARK,'#e0702e'],[0,'#5b9ad0']]){ const [a,b]=P(-W,z), [c2]=P(W,z); mx.fillStyle=c; mx.fillRect(a-8,b-3,8,6); mx.fillRect(c2,b-3,8,6); }
   mx.strokeStyle = 'rgba(245,236,215,.15)'; mx.setLineDash([4,6]); mx.beginPath(); const [cx1,cy1]=P(0,-L), [cx2,cy2]=P(0,L); mx.moveTo(cx1,cy1); mx.lineTo(cx2,cy2); mx.stroke(); mx.setLineDash([]);
+  if (mode==='ranch') drawRanchMini(P);
   mx.strokeStyle = 'rgba(200,169,110,.85)'; mx.lineWidth = 2.2; mx.beginPath();
   S.trail.forEach((p,i)=>{ const [a,b]=P(p[0],p[1]); i?mx.lineTo(a,b):mx.moveTo(a,b); }); mx.stroke();
   const [hx,hz] = P(S.x,S.z), [fx,fz] = fwd(S.yaw);
@@ -3872,6 +3878,8 @@ function patternTick(dt){
   }
 }
 function renderPattern(){
+  if (mode==='ranch'){ renderRanch(); return; }
+  ranchGroundUpdate();
   if (mode!=='pattern'){ $('#patternPanel').hidden = true; updatePatternGround(); return; }
   $('#patternPanel').hidden = false;
   const total = 70 + P.scores.reduce((s,v)=>s+(v||0),0) - P.pens.reduce((s,v)=>s+v,0);
@@ -3886,6 +3894,7 @@ function renderPattern(){
 }
 function endPattern(){
   P.done = true;
+  $('#sheetTitle').textContent = 'Pattern de reining';
   const total = 70 + P.scores.reduce((s,v)=>s+(v||0),0) - P.pens.reduce((s,v)=>s+v,0);
   const rows = MANEUVERS.map((m,i)=>`<tr><td>${i+1}</td><td>${m.label}<small>${P.notes[i].join(' · ')||'Propre'}</small></td><td class="r">${fmtScore(P.scores[i]||0)}</td><td class="r">${P.pens[i]?'−'+fr(P.pens[i],1):''}</td></tr>`).join('');
   $('#sheetTable').innerHTML = `<thead><tr><th>#</th><th>Manœuvre</th><th class="r">Note</th><th class="r">Pén.</th></tr></thead><tbody>${rows}</tbody>`;
@@ -3898,6 +3907,345 @@ function endPattern(){
     : `Le juge a demandé si c'était une reprise de trail. Courage, ${H.name} vous attend au box.`;
   const prev = records[H.name];
   if (!prev || total > prev){ records[H.name] = Math.round(total*10)/10; store.set('cj-records', records); if (prev) $('#sheetVerdict').textContent += ' Nouveau record personnel.'; }
+  setTimeout(()=>{ $('#sheet').hidden = false; playing = false; keys.clear(); $('#sheetAgain').focus(); }, 900);
+}
+
+
+/* =========================================================
+   Pattern de ranch riding
+   ========================================================= */
+// Pattern tiré de la feuille du club : départ en bas au centre. Les lignes verticales de la feuille courent le long de la carrière (z),
+// les horizontales en travers (x). Feuille → carrière : x = (px − 617) × 0,029 ; z = (py − 857) × 0,058, le haut de la feuille vers −z.
+const RX = px => (px - 617)*.029, RZ = py => (py - 857)*.058;
+const RANCH_POLES = { x:RX(1090), z:[-1.125, -.375, .375, 1.125].map(d => RZ(1068) + d), half:1.5 };
+const RANCH = [
+  {id:'r1', kind:'gait', g:3, next:0, r:2, label:'Trot allongé', path:[[665,1415],[665,455]],
+   hint:'Départ en bas de la piste, sur la ligne du milieu : montez au <b>trot allongé</b> (<b>↑</b> trois fois) et tenez la ligne droite jusqu\'au repère du fond.'},
+  {id:'r2', kind:'roll', dir:-1, label:'Arrêt, rollback à droite', at:[665,450],
+   hint:'<b>Espace</b> pour l\'arrêt au repère, puis <b>→</b> : rollback à droite, le cheval repart directement au galop pied droit.'},
+  {id:'r3', kind:'gait', g:4, lead:'R', next:5, r:6, label:'Galop à droite (PD)', path:[[705,415],[705,1068],[282,1068],[282,900]],
+   hint:'Petit galop pied droit : descendez la ligne, tournez à droite en bas, longez le fond et remontez dans le coin.'},
+  {id:'r4', kind:'gait', g:5, lead:'R', next:2, r:9, label:'Galop allongé à droite (PD)', path:[[282,900],[282,333],[1000,333],[1000,520]],
+   hint:'<b>↑</b> pour le galop allongé, toujours pied droit : remontez tout le grand côté, longez le haut et tournez à droite dans le coin. Si le virage arrive trop vite, <b>↓</b> pour reprendre le petit galop, puis <b>↑</b> sur la ligne droite.'},
+  {id:'r5', kind:'gait', g:2, next:1, r:2, label:'Au trot', path:[[1000,520],[1000,800]],
+   hint:'Après le coin, <b>↓</b> deux fois pour revenir au jog et descendez la ligne.'},
+  {id:'r6', kind:'gait', g:1, next:1, r:1.3, label:'Au pas', path:[[1000,800],[1000,1255],[1090,1255],[1090,1130]],
+   hint:'<b>↓</b> pour le pas. Descendez jusqu\'en bas, demi-tour serré à gauche et remontez vers les barres.'},
+  {id:'r7', kind:'gait', g:1, next:1, r:1, poles:true, label:'Au pas sur les barres au sol', path:[[1090,1130],[1090,1005]],
+   hint:'Toujours au pas, passez bien au milieu des quatre barres. <b>Maj</b> aide le cheval à lever les pieds.'},
+  {id:'r8', kind:'gait', g:1, next:2, r:1, label:'Au pas', path:[[1090,1005],[1090,900]],
+   hint:'Encore quelques mètres au pas après les barres, sans se presser.'},
+  {id:'r9', kind:'gait', g:2, next:0, r:3, label:'Au trot', path:[[1090,900],[1090,300],[745,300]],
+   hint:'<b>↑</b> pour le jog : remontez le long de la lice, tournez à gauche en haut et arrêtez-vous au repère du pivot.'},
+  {id:'r10', kind:'pivot', dir:1, label:'Arrêt, pivot 360° à gauche', at:[740,300],
+   hint:'<b>Espace</b> pour l\'arrêt, puis <b>←</b> maintenu pour un pivot de 360° à gauche. Relâchez un peu avant le tour complet.'},
+  {id:'r11', kind:'gait', g:4, lead:'L', next:0, r:7, label:'Galop à gauche (PG)', path:[[735,300],[172,300],[172,1415]],
+   hint:'Départ au galop pied gauche (<b>↑</b> pour partir, puis <b>←</b> tenu et <b>Maj</b>+<b>↑↑</b>), longez le haut et descendez tout le grand côté.'},
+  {id:'r12', kind:'back', label:'Arrêt, reculer', at:[172,1415],
+   hint:'En bas, <b>Espace</b> pour l\'arrêt, puis <b>↓</b> maintenu pour reculer d\'au moins 3 m. Immobile une seconde pour finir.'},
+];
+var RR = { idx:0, scores:[], pens:[], notes:[], done:false, s:null, cross:new Set(), lastZ:null, v:{} };
+var ranchGround = null, RPATHS = null;
+const fam = g => g===0 ? 0 : g===1 ? 1 : g<=3 ? 2 : 3;
+
+function fillet(p, r){
+  const out = [p[0]];
+  for (let i=1;i<p.length-1;i++){
+    const [ax,az] = p[i-1], [bx,bz] = p[i], [cx,cz] = p[i+1];
+    const l1 = Math.hypot(bx-ax, bz-az), l2 = Math.hypot(cx-bx, cz-bz);
+    const t = Math.min(r, l1*.5, l2*.5);
+    const s = [bx - (bx-ax)/l1*t, bz - (bz-az)/l1*t], e = [bx + (cx-bx)/l2*t, bz + (cz-bz)/l2*t];
+    for (let k=0;k<=10;k++){ const q = k/10; out.push([(1-q)*(1-q)*s[0] + 2*(1-q)*q*bx + q*q*e[0], (1-q)*(1-q)*s[1] + 2*(1-q)*q*bz + q*q*e[1]]); }
+  }
+  out.push(p[p.length-1]);
+  return out;
+}
+function ranchPaths(){
+  if (RPATHS) return RPATHS;
+  RPATHS = RANCH.map(m => {
+    if (!m.path) return null;
+    const p = fillet(m.path.map(([a,b]) => [RX(a), RZ(b)]), m.r || 1);
+    const cum = [0]; for (let i=1;i<p.length;i++) cum.push(cum[i-1] + Math.hypot(p[i][0]-p[i-1][0], p[i][1]-p[i-1][1]));
+    return { p, cum, len:cum[cum.length-1] };
+  });
+  return RPATHS;
+}
+function pathProj(Pt, x, z, lo, hi){
+  let best = null;
+  for (let i=0;i<Pt.p.length-1;i++){
+    if (Pt.cum[i+1] < lo || Pt.cum[i] > hi) continue;
+    const [ax,az] = Pt.p[i], [bx,bz] = Pt.p[i+1], dx = bx-ax, dz = bz-az, l2 = dx*dx + dz*dz || 1;
+    const t = clamp(((x-ax)*dx + (z-az)*dz)/l2, 0, 1), d = Math.hypot(x - ax - dx*t, z - az - dz*t);
+    if (!best || d < best.d) best = { d, along: Pt.cum[i] + t*Math.sqrt(l2) };
+  }
+  return best;
+}
+function pathAt(Pt, s){
+  let i = 1; while (i < Pt.cum.length-1 && Pt.cum[i] < s) i++;
+  const [ax,az] = Pt.p[i-1], [bx,bz] = Pt.p[i], l = Math.hypot(bx-ax, bz-az) || 1, t = clamp((s - Pt.cum[i-1])/l, 0, 1);
+  return [ax + (bx-ax)*t, az + (bz-az)*t, (bx-ax)/l, (bz-az)/l];
+}
+
+// ---- tracé au sol : pointillés pour le pas, tirets pour le jog, longs tirets pour le trot allongé, trait fin pour le galop, épais pour le galop allongé
+function buildRanchGround(){
+  if (ranchGround) return;
+  ranchGround = new THREE.Group(); ranchGround.visible = false; scene.add(ranchGround);
+  const mat = () => new THREE.MeshBasicMaterial({color:'#fffaf0', transparent:true, opacity:.85, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-2, side:THREE.DoubleSide});
+  const mesh = (tris, g) => {
+    const pos = new Float32Array(tris.length*9); let o = 0;
+    for (const t of tris) for (const [x,z] of t){ pos[o++] = x; pos[o++] = 0; pos[o++] = z; }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const m = new THREE.Mesh(geo, mat()); m.position.y = .03; m.renderOrder = 2; g.add(m);
+  };
+  const quad = (T, cx, cz, dx, dz, l, w) => {
+    const nx = -dz, nz = dx, a = l/2, b = w/2;
+    const A = [cx - dx*a - nx*b, cz - dz*a - nz*b], B = [cx + dx*a - nx*b, cz + dz*a - nz*b], C = [cx + dx*a + nx*b, cz + dz*a + nz*b], D = [cx - dx*a + nx*b, cz - dz*a + nz*b];
+    T.push([A,B,C], [A,C,D]);
+  };
+  const arrowT = (T, cx, cz, dx, dz, k=1) => { const nx = -dz, nz = dx; T.push([[cx + dx*.6*k, cz + dz*.6*k], [cx - dx*.35*k + nx*.42*k, cz - dz*.35*k + nz*.42*k], [cx - dx*.35*k - nx*.42*k, cz - dz*.35*k - nz*.42*k]]); };
+  const STY = { 1:[.2,.62,.2], 2:[.55,1.0,.14], 3:[1.25,1.85,.22], 4:[.56,.5,.12], 5:[.56,.5,.32] };   // longueur du trait, période, largeur
+  const paths = ranchPaths();
+  RR.groups = RANCH.map((m, i) => {
+    const g = new THREE.Group(); ranchGround.add(g); const T = [];
+    const Pt = paths[i];
+    if (Pt){
+      const [dl, per, w] = STY[m.g];
+      for (let s = per/2; s < Pt.len; s += per){ const [x, z, dx, dz] = pathAt(Pt, s); quad(T, x, z, dx, dz, dl, w); }
+      for (let s = 6; s < Pt.len - 3; s += 13){ const [x, z, dx, dz] = pathAt(Pt, s); arrowT(T, x - dz*.75, z + dx*.75, dx, dz); }
+      if (m.next === 0){ const [x, z, dx, dz] = pathAt(Pt, Pt.len); quad(T, x, z, -dz, dx, 1.8, .16); }   // barre d'arrêt
+    }
+    if (m.kind==='roll'){   // le crochet du rollback à droite
+      const hook = { p:[], cum:[0] }; const pts = [[665,455],[666,410],[676,393],[694,393],[705,412]].map(([a,b]) => [RX(a), RZ(b)]);
+      const sm = fillet(pts, 1.2); hook.p = sm; for (let k=1;k<sm.length;k++) hook.cum.push(hook.cum[k-1] + Math.hypot(sm[k][0]-sm[k-1][0], sm[k][1]-sm[k-1][1])); hook.len = hook.cum[hook.cum.length-1];
+      for (let s = .25; s < hook.len; s += .5){ const [x, z, dx, dz] = pathAt(hook, s); quad(T, x, z, dx, dz, .56, .12); }
+      const [x, z, dx, dz] = pathAt(hook, hook.len); arrowT(T, x, z, dx, dz, .9);
+    }
+    if (m.kind==='pivot'){   // le symbole du pivot : un cercle presque fermé et sa flèche
+      const cx = RX(m.at[0]), cz = RZ(m.at[1]);
+      for (let k=0;k<26;k++){ const a = .5 + k/30*Math.PI*2, a2 = a + Math.PI*2/30; const x0 = cx + Math.cos(a)*.95, z0 = cz + Math.sin(a)*.95, x1 = cx + Math.cos(a2)*.95, z1 = cz + Math.sin(a2)*.95; const l = Math.hypot(x1-x0, z1-z0); quad(T, (x0+x1)/2, (z0+z1)/2, (x1-x0)/l, (z1-z0)/l, l*1.05, .14); }
+      const aE = .5 + 26/30*Math.PI*2; arrowT(T, cx + Math.cos(aE)*.95, cz + Math.sin(aE)*.95, -Math.sin(aE), Math.cos(aE), .7);
+    }
+    if (m.kind==='back'){   // les marques du reculer, en remontant depuis l'arrêt
+      const cx = RX(m.at[0]) + 1.1, cz = RZ(m.at[1]);
+      for (let k=0;k<4;k++){ const z = cz - .5 - k*1.1; quad(T, cx, z, 1, 0, .7, .12); quad(T, cx - .33, z - .25, 0, 1, .5, .12); quad(T, cx + .33, z - .25, 0, 1, .5, .12); }
+      quad(T, RX(m.at[0]), cz + .3, 1, 0, 1.8, .16);
+    }
+    mesh(T, g);
+    return g;
+  });
+  // DÉPART, écrit au sol
+  const dep = new THREE.Mesh(new THREE.PlaneGeometry(3.2, .8), new THREE.MeshBasicMaterial({transparent:true, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-2, map: canvasTex(512, 128, (x, w, h) => { x.clearRect(0,0,w,h); x.fillStyle = '#fffaf0'; x.font = 'bold 84px Georgia'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('DÉPART', w/2, h/2 + 4); })}));
+  dep.rotation.x = -Math.PI/2; dep.position.set(RX(665), .031, RZ(1415) + 3.6); ranchGround.add(dep);
+  // les quatre barres au sol, 75 cm d'écart
+  const wood = new THREE.MeshLambertMaterial({color:'#8a5a32'}), paint = new THREE.MeshLambertMaterial({color:'#eee4cf'});
+  RR.poleMeshes = RANCH_POLES.z.map(z => {
+    const g = new THREE.Group();
+    for (let k=0;k<6;k++){ const c = new THREE.Mesh(new THREE.CylinderGeometry(.065, .065, RANCH_POLES.half*2/6, 10), k%2 ? paint : wood); c.rotation.z = Math.PI/2; c.position.x = -RANCH_POLES.half + (k+.5)*RANCH_POLES.half*2/6; c.castShadow = true; g.add(c); }
+    g.position.set(RANCH_POLES.x, .065, z); g.userData.z0 = z; ranchGround.add(g); return g;
+  });
+}
+function ranchGroundUpdate(){
+  if (!ranchGround) return;
+  ranchGround.visible = mode==='ranch';
+  (RR.groups||[]).forEach((g, i) => { const k = i===RR.idx ? 1 : i===RR.idx+1 ? .5 : .22; g.traverse(o => { if (o.material) o.material.opacity = .85*k; }); });
+}
+function drawRanchMini(Pm){
+  const paths = ranchPaths(), DASH = { 1:[1.5,4], 2:[4,4], 3:[8,4], 4:[], 5:[] }, WID = { 1:2, 2:1.6, 3:2, 4:1.4, 5:3 };
+  RANCH.forEach((m, i) => {
+    const Pt = paths[i]; if (!Pt) return;
+    mx.strokeStyle = i===RR.idx ? 'rgba(255,250,240,.95)' : 'rgba(255,250,240,.32)'; mx.lineWidth = WID[m.g]; mx.setLineDash(DASH[m.g]);
+    mx.beginPath(); Pt.p.forEach(([x, z], k) => { const [a, b] = Pm(x, z); k ? mx.lineTo(a, b) : mx.moveTo(a, b); }); mx.stroke();
+  });
+  mx.setLineDash([]);
+  mx.fillStyle = 'rgba(138,90,50,.95)'; for (const z of RANCH_POLES.z){ const [a, b] = Pm(RANCH_POLES.x - RANCH_POLES.half, z), [c] = Pm(RANCH_POLES.x + RANCH_POLES.half, z); mx.fillRect(a, b - 1, c - a, 2); }
+}
+
+// ---- notation
+function ranchReset(){
+  Object.assign(RR, { idx:0, scores:RANCH.map(()=>null), pens:RANCH.map(()=>0), notes:RANCH.map(()=>[]), done:false, s:null, cross:new Set(), lastZ:null, v:{} });
+  (RR.poleMeshes||[]).forEach(g => { g.position.z = g.userData.z0; g.rotation.y = 0; });
+  renderRanch();
+}
+function rpen(i, v, note){ RR.pens[i] += v; RR.notes[i].push(`${note} (−${fr(v,1)})`); toast(`${note} : −${fr(v,1)}`, 'warn'); }
+function rfinish(i, raw, extra=[]){
+  RR.scores[i] = clamp(roundHalf(raw), -1.5, 1.5);
+  RR.notes[i].unshift(...extra);
+  const total = RR.scores[i] - RR.pens[i];
+  toast(`${RANCH[i].label} : ${fmtScore(RR.scores[i])}${RR.pens[i] ? ', pénalités '+fr(RR.pens[i],1) : ''}`, total>=0 ? 'good' : 'warn');
+  RR.idx = i+1; RR.s = null;
+  if (RANCH[RR.idx] && RANCH[RR.idx].poles) RR.cross.clear();
+  if (RR.idx >= RANCH.length) endRanch();
+  renderRanch();
+}
+function ranchPoles(){
+  const pz = RR.lastZ ?? S.z; RR.lastZ = S.z;
+  if (Math.abs(S.x - RANCH_POLES.x) > RANCH_POLES.half || pz === S.z) return;
+  RANCH_POLES.z.forEach((z, k) => {
+    if ((pz - z)*(S.z - z) > 0) return;
+    RR.cross.add(k);
+    const fast = S.gait >= 2;
+    let p = S.gait <= 1 ? .07 + .2*(1 - H.st.sens) : S.gait <= 3 ? .45 : .7;
+    if (held('legs')) p *= .5;
+    if (Math.random() < p){
+      const i = Math.min(RR.idx, RANCH.length-1);
+      rpen(i, fast ? 1 : .5, fast ? 'Barre heurtée' : 'Barre touchée');
+      poleKnock(fast);
+      const g = RR.poleMeshes && RR.poleMeshes[k]; if (g){ g.position.z += (S.z < pz ? -1 : 1)*(fast ? .25 : .06); g.rotation.y += (Math.random()-.5)*(fast ? .25 : .06); }
+    }
+  });
+}
+function poleKnock(hard){
+  if (!Sound.ctx || !Sound.on) return;
+  const c = Sound.ctx, t = c.currentTime, o = c.createOscillator(), g = c.createGain();
+  o.type = 'triangle'; o.frequency.setValueAtTime(hard ? 380 : 640, t); o.frequency.exponentialRampToValueAtTime(170, t + .12);
+  g.gain.setValueAtTime(hard ? .7 : .45, t); g.gain.exponentialRampToValueAtTime(.001, t + .2);
+  o.connect(g); g.connect(Sound.master); o.start(t); o.stop(t + .22);
+}
+function ranchTick(dt){
+  if (mode!=='ranch' || RR.done) return;
+  ranchPoles();
+  const i = RR.idx, m = RANCH[i]; if (!m) return;
+  if (m.kind==='gait') gaitTick(i, m, dt); else stopTick(i, m, dt);
+}
+function gaitTick(i, m, dt){
+  const Pt = ranchPaths()[i];
+  const s = RR.s || (RR.s = { prog:0, max:0, t:0, ok:0, exact:0, vS:0, run:0, brk:null, nb:0, leadT:0, leadPen:false, offT:0, offPen:false, devS:0, devN:0 });
+  s.t += dt;
+  let pr = pathProj(Pt, S.x, S.z, s.prog - 5, s.prog + 12);
+  if (!pr || pr.d > 8){ const g = pathProj(Pt, S.x, S.z, -1e9, 1e9); if (g && (!pr || g.d < pr.d - 2)) pr = g; }
+  if (!pr) pr = { d:99, along:s.prog };
+  s.prog = pr.along; s.max = Math.max(s.max, pr.along);
+  const next = m.next, same = fam(next) === fam(m.g);
+  const nearEnd = s.max > Pt.len - Math.max(6, Math.abs(S.v)*1.6);
+  const nextOK = next !== m.g && (same ? S.gait === next : fam(S.gait) === fam(next));
+  if ((nearEnd && nextOK) || s.max >= Pt.len - .6){ closeGait(i, m, s); return; }
+  const prev = RANCH[i-1], grace = s.t < 2.5 && s.max < 6 && !(prev && prev.kind==='gait' && prev.g === m.g);
+  if (grace) return;
+  if (S.mode==='ride' || S.mode==='slide'){
+    const gf = S.mode==='slide' ? 0 : fam(S.gait);
+    if (gf === fam(m.g)){
+      s.ok += dt; if (S.gait === m.g) s.exact += dt; s.vS += Math.abs(S.v)*dt;
+      if (s.brk){ if (!s.brk.pen && s.nb <= 3) rpen(i, gf===3 ? 3 : 1, gf===3 ? 'Rupture d\'allure au galop' : 'Rupture d\'allure courte'); s.brk = null; }
+      s.run = 0;
+    } else {
+      s.run += dt;
+      if (s.run > .45 && !s.brk){ s.brk = { pen:false }; s.nb++; }
+      if (s.brk && !s.brk.pen && s.run > 1.3){ s.brk.pen = true; if (s.nb <= 3) rpen(i, 3, fam(m.g)===3 ? 'Rupture d\'allure au galop' : 'Rupture d\'allure de plus de deux foulées'); }
+    }
+    if (fam(m.g)===3 && gf===3 && (S.lead !== m.lead || S.disunited)){
+      s.leadT += dt;
+      if (s.leadT > .7 && !s.leadPen){ s.leadPen = true; rpen(i, 3, S.disunited ? 'Galop désuni' : 'Galop sur le mauvais pied'); }
+    }
+  }
+  s.devS += Math.min(pr.d, 10)*dt; s.devN += dt;
+  if (pr.d > 4.5){ s.offT += dt; if (s.offT > 1.5 && !s.offPen){ s.offPen = true; rpen(i, 3, 'Sortie du tracé'); } }
+  else s.offT = Math.max(0, s.offT - dt);
+}
+function closeGait(i, m, s){
+  if (s.brk && !s.brk.pen && s.nb <= 3) rpen(i, fam(m.g)===3 ? 3 : 1, fam(m.g)===3 ? 'Rupture d\'allure au galop' : 'Rupture d\'allure courte');
+  const Pt = ranchPaths()[i], extra = [], ok = Math.max(s.ok, .01), ratio = s.exact/ok, vAvg = s.vS/ok, dev = s.devN ? s.devS/s.devN : 0;
+  let raw = 0;
+  if (s.ok < Math.min(1.2, Pt.len/GAIT_SPEED[m.g]*.3) && !m.poles){ raw = -1.5; extra.push('Allure demandée à peine montrée'); }
+  else {
+    if (m.g !== 1) extra.push(`${Math.round(vAvg*3.6)} km/h de moyenne`);
+    if (ratio > .85) raw += .5;
+    else if (ratio < .5) { raw -= .5; extra.push(m.g===3 || m.g===5 ? 'Allongement à peine marqué' : m.g===2 ? 'Trot trop allongé' : m.g===4 ? 'Galop trop allongé' : 'Allure irrégulière'); }
+    if (s.nb === 0 && !s.leadPen) raw += .5;
+    if (dev < 1.2) raw += .5; else if (dev > 2.8) { raw -= .5; extra.push('Tracé approximatif'); }
+    if (m.g >= 2 && vAvg < GAIT_SPEED[m.g]*H.speedMul*.78) rpen(i, 1, 'Trop lent');
+    RR.v[m.g] = vAvg;
+    if (m.g === 5 && RR.v[4] && vAvg - RR.v[4] < 1.6) { raw -= .5; extra.push('Pas de vraie différence avec le galop de travail'); }
+  }
+  if (m.poles){
+    if (RR.cross.size < 4) rpen(i, 5, 'Barres évitées');
+    else if (RR.pens[i] === 0) { raw += .5; extra.push('Barres franchies proprement'); }
+  }
+  rfinish(i, raw, extra);
+}
+function stopTick(i, m, dt){
+  const s = RR.s || (RR.s = { t:0, tStop:null, raw:0, extra:[], b:0, bt:0, slid:null, lateTold:false, sawSlide:false });
+  s.t += dt;
+  if (S.mode==='slide') s.sawSlide = true;
+  if (s.tStop === null){
+    if ((S.mode==='ride' && S.gait===0 && Math.abs(S.v) < .3) || S.mode==='rollback' || S.mode==='spin'){
+      s.tStop = s.t;
+      const at = [RX(m.at[0]), RZ(m.at[1])], d = Math.hypot(S.x - at[0], S.z - at[1]);
+      if (s.sawSlide){ s.raw += .5; s.extra.push(s.slid ? `Sliding stop de ${fr(s.slid.dist,1)} m` : 'Sliding stop'); }
+      else if (s.t < 1.4){ s.raw += .5; s.extra.push('Arrêt net'); }
+      else if (s.t > 3){ s.raw -= .5; s.extra.push('Arrêt traînant'); }
+      if (d > 5){ s.raw -= .5; s.extra.push('Arrêt loin du repère'); }
+    } else if (s.t > 5 && !s.lateTold){ s.lateTold = true; rpen(i, 1, 'Arrêt tardif'); }
+    return;
+  }
+  if (m.kind==='back'){
+    const b = s.b + S.backup;
+    if (b >= 3 && S.stillT > .8){
+      const t = s.bt + S.backupT; let raw = s.raw + .5; const extra = [...s.extra, `Reculer de ${fr(b,1)} m`];
+      if (t > 0 && b/t > 1.05) { raw += .5; extra.push('Reculer franc'); }
+      rfinish(i, raw, extra);
+    } else if (S.mode==='ride' && S.gait >= 1){
+      if (b < 1) rpen(i, 5, 'Reculer oublié'); else rpen(i, 1, 'Reculer trop court');
+      rfinish(i, s.raw - 1, s.extra);
+    }
+    return;
+  }
+  if (S.mode==='ride' && S.gait >= 1){   // reparti sans faire la manœuvre
+    rpen(i, 5, m.kind==='roll' ? 'Rollback oublié' : 'Pivot oublié');
+    rfinish(i, -1.5, s.extra);
+  }
+}
+listeners.push((type, d) => {
+  if (mode!=='ranch' || RR.done) return;
+  const i = RR.idx, m = RANCH[i], s = RR.s; if (!m || !s) return;
+  if (type==='slideEnd') s.slid = d;
+  if (m.kind==='roll' && type==='rollback' && s.tStop !== null){
+    let raw = s.raw; const extra = [...s.extra];
+    if (d.dir !== m.dir){ rpen(i, 3, 'Rollback du mauvais côté'); raw -= 1; }
+    else { extra.push(`Rollback en ${fr(d.dur,2)} s`); if (d.dur < .62) raw += .5; else if (d.dur > .85) { raw -= .5; extra.push('Rollback lent'); } }
+    if (s.t - s.tStop > 5) { raw -= .5; extra.push('Longue attente avant le rollback'); }
+    if (d.auto) rpen(i, .5, 'Anticipation');
+    rfinish(i, raw, extra);
+  }
+  if (m.kind==='pivot' && type==='spinEnd' && s.tStop !== null){
+    let raw = s.raw; const extra = [...s.extra, `${fmtRevs(d.revs)} à ${fr(d.avg,2)} tour/s`];
+    if (d.dir !== m.dir){ rpen(i, 3, 'Pivot du mauvais côté'); raw -= 1; }
+    const off = Math.abs(d.revs - 1)*360;
+    if (off > 90) rpen(i, 1, d.revs > 1 ? 'Pivot trop long de plus d\'un quart de tour' : 'Pivot trop court de plus d\'un quart de tour');
+    else if (off > 45) rpen(i, .5, d.revs > 1 ? 'Pivot un peu trop long' : 'Pivot un peu trop court');
+    if (d.drift > .6) { raw -= .5; extra.push('Pivot qui se déplace'); } else raw += .5;
+    if (d.avg >= .3) raw += .5; else if (d.avg < .18) { raw -= .5; extra.push('Pivot hésitant'); }
+    rfinish(i, raw, extra);
+  }
+  if (m.kind==='back' && type==='backupEnd'){ s.b += d.dist; s.bt += d.t; }
+});
+function renderRanch(){
+  ranchGroundUpdate();
+  if (mode!=='ranch') return;
+  $('#patternPanel').hidden = false;
+  const total = 70 + RR.scores.reduce((s,v)=>s+(v||0),0) - RR.pens.reduce((s,v)=>s+v,0);
+  $('#pattern').innerHTML = `<div class="ptitle">Pattern de ranch riding</div>` + RANCH.map((m,i)=>{
+    const s = RR.scores[i], cls = i===RR.idx ? 'now' : s!==null ? 'done' : '';
+    const sc = s===null ? (RR.pens[i] ? `<span class="sc"><span class="neg">−${fr(RR.pens[i],1)}</span></span>` : '') : `<span class="sc ${s>0?'pos':s<0?'neg':''}">${fmtScore(s)}${RR.pens[i]?` <span class="neg">−${fr(RR.pens[i],1)}</span>`:''}</span>`;
+    return `<div class="mv ${cls}"><span class="n">${i+1}</span><span>${m.label}</span>${sc}</div>`;
+  }).join('') + `<div class="ptotal"><span>Note en cours</span><b>${fr(total,1)}</b></div>`;
+  const m = RANCH[RR.idx];
+  $('#instr').innerHTML = m ? m.hint : 'Pattern terminé.';
+}
+function endRanch(){
+  RR.done = true;
+  const total = 70 + RR.scores.reduce((s,v)=>s+(v||0),0) - RR.pens.reduce((s,v)=>s+v,0);
+  const rows = RANCH.map((m,i)=>`<tr><td>${i+1}</td><td>${m.label}<small>${RR.notes[i].join(' · ')||'Propre'}</small></td><td class="r">${fmtScore(RR.scores[i]||0)}</td><td class="r">${RR.pens[i]?'−'+fr(RR.pens[i],1):''}</td></tr>`).join('');
+  $('#sheetTitle').textContent = 'Pattern de ranch riding';
+  $('#sheetTable').innerHTML = `<thead><tr><th>#</th><th>Manœuvre</th><th class="r">Note</th><th class="r">Pén.</th></tr></thead><tbody>${rows}</tbody>`;
+  $('#sheetScore').textContent = fr(total,1);
+  $('#sheetSub').textContent = `Feuille de juge · ranch riding · ${H.name}`;
+  $('#sheetVerdict').textContent = total >= 73 ? `Un vrai cheval de ranch : ${H.name} irait trier le bétail demain matin sans demander son reste.`
+    : total >= 70.5 ? `Des allures franches et un tracé propre. Le juge vous confierait volontiers une clôture à vérifier.`
+    : total >= 68 ? `Correct, sans plus. On sent le cheval de ranch, on sent aussi qu'il pense déjà au foin.`
+    : total >= 64 ? `Le juge a noté beaucoup de choses, dont certaines ne figurent dans aucun règlement. On retravaille les transitions.`
+    : `Le bétail en option a préféré rester dans son camion. Courage, ${H.name} vous pardonnera au box.`;
+  const prev = rrecords[H.name];
+  if (!prev || total > prev){ rrecords[H.name] = Math.round(total*10)/10; store.set('cj-records-ranch', rrecords); if (prev) $('#sheetVerdict').textContent += ' Nouveau record personnel.'; }
   setTimeout(()=>{ $('#sheet').hidden = false; playing = false; keys.clear(); $('#sheetAgain').focus(); }, 900);
 }
 
@@ -4049,16 +4397,17 @@ function showNPCs(){ buildNPCs(); for (const n of NPCS.list) n.root.visible = n.
 let playing = false, lastT = 0, frameN = 0, lastStep = 0;
 function restart(){
   resetState(); if (mode==='pattern') S.yaw = Math.PI/2;   // au centre, face au juge assis au milieu du grand côté
+  if (mode==='ranch'){ S.x = RX(665); S.z = RZ(1415); S.yaw = 0; }   // en bas de la piste, face au fond
   if (mode==='promenade'){ S.x = PROM.start[0]; S.z = PROM.start[1]; S.yaw = -Math.PI/2; promY = PROM.walkY(S.x, S.z); }   // à l'entrée, face à la prairie
   buildHorse(H); if (model){ neckPivot.visible = false; applyCoat(H); }
   updateTpCam(0, true);
-  if (mode==='pattern') patternReset(); else renderPattern();
-  $('#instr').innerHTML = mode==='promenade' ? `Promenade sur <b>${H.name}</b>. Prairie, collines, plage et lac où l'eau arrive aux genoux, cascade au nord-est. La rivière est trop profonde : on la traverse par le pont. Et quelque part derrière les buissons, près de la cascade, une entrée secrète… Pour rentrer, revenez au portail ou appuyez sur <b>Échap</b>. Au sud-est, un champ de blé où les épis arrivent à l'épaule, et une forêt dense et sombre traversée par un sentier.` : mode==='pattern' ? MANEUVERS[0].hint : `Monte libre sur <b>${H.name}</b>. Gardez <b>Maj</b> enfoncé pour mettre des jambes et placer votre cheval : il tient son allure et s'arrondit. Montez les allures avec la flèche <b>↑</b>, essayez un sliding stop lancé au galop allongé, ou des spins à l'arrêt.`;
+  if (mode==='pattern') patternReset(); else if (mode==='ranch') ranchReset(); else renderPattern();
+  $('#instr').innerHTML = mode==='promenade' ? `Promenade sur <b>${H.name}</b>. Prairie, collines, plage et lac où l'eau arrive aux genoux, cascade au nord-est. La rivière est trop profonde : on la traverse par le pont. Et quelque part derrière les buissons, près de la cascade, une entrée secrète… Pour rentrer, revenez au portail ou appuyez sur <b>Échap</b>. Au sud-est, un champ de blé où les épis arrivent à l'épaule, et une forêt dense et sombre traversée par un sentier.` : mode==='pattern' ? MANEUVERS[0].hint : mode==='ranch' ? RANCH[0].hint : `Monte libre sur <b>${H.name}</b>. Gardez <b>Maj</b> enfoncé pour mettre des jambes et placer votre cheval : il tient son allure et s'arrondit. Montez les allures avec la flèche <b>↑</b>, essayez un sliding stop lancé au galop allongé, ou des spins à l'arrêt.`;
   $('#hName').textContent = H.name;
   $('#sheet').hidden = true;
 }
 function start(m){
-  mode = m; H = HORSES[selected]; setWorld(m); if (m === 'promenade') showNPCs();
+  mode = m; H = HORSES[selected]; if (m === 'ranch') buildRanchGround(); setWorld(m); if (m === 'promenade') showNPCs();
   Sound.init(); if (Sound.ctx && Sound.ctx.state==='suspended') Sound.ctx.resume();
   restart();
   $('#menu').hidden = true;
@@ -4066,6 +4415,7 @@ function start(m){
   playing = true; keys.clear(); pressed.clear();
   resize();
   if (mode==='pattern') toast('Face au juge. Deux spins à droite pour commencer.', '');
+  else if (mode==='ranch') toast('Ranch riding : des allures franches, un tracé propre, et les barres au sol sans les toucher.', '');
   else if (mode==='promenade') toast(`Balade en extérieur avec ${H.name}. Le pont est au nord, la plage au sud-ouest, la forêt sombre au sud-est… et près de la cascade, la roche cache peut-être un secret.`, '');
   else toast(`${H.name} est sellé. Bonne monte.`, '');
 }
@@ -4076,6 +4426,7 @@ function openMenu(){
 }
 $('#goFree').addEventListener('click', ()=>start('free'));
 $('#goPattern').addEventListener('click', ()=>start('pattern'));
+$('#goRanch').addEventListener('click', ()=>start('ranch'));
 $('#goWalk').addEventListener('click', ()=>start('promenade'));
 $('#btnMenu').addEventListener('click', openMenu);
 $('#btnView').addEventListener('click', e=>{ toggleView(); e.currentTarget.blur(); });
@@ -4109,14 +4460,14 @@ $('#btnFold').addEventListener('click', e=>{ setFold(!$('#hudTL').classList.cont
 }
 $('#btnView').textContent = view==='ext' ? 'Vue selle' : 'Vue extérieure';
 $('#btnSound').addEventListener('click', e=>{ Sound.on = !Sound.on; e.currentTarget.textContent = 'Son : ' + (Sound.on?'oui':'non'); if(!Sound.on) Sound.slide(0); e.currentTarget.blur(); });
-$('#sheetAgain').addEventListener('click', ()=>{ start('pattern'); });
+$('#sheetAgain').addEventListener('click', ()=>{ start(mode==='ranch' ? 'ranch' : 'pattern'); });
 $('#sheetMenu').addEventListener('click', openMenu);
 
 function loop(ts){
   const t = ts/1000, dt = Math.min(.12, lastT ? t-lastT : .016); lastT = t;
   if (playing){
     let rem = Math.min(.12, lastStep + dt); lastStep = 0;
-    while (rem > 1e-4 && playing){ const st = Math.min(rem, .034); update(st); patternTick(st); rem -= st; }
+    while (rem > 1e-4 && playing){ const st = Math.min(rem, .034); update(st); patternTick(st); ranchTick(st); rem -= st; }
     updateHud();
   }
   animateRig(dt, t);
