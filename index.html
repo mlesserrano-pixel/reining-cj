@@ -170,10 +170,30 @@ td small{display:block;font-family:var(--f-body);font-size:12.5px;color:#6b4a2d;
 .row{display:flex;flex-wrap:wrap;gap:10px}
 
 @media (prefers-reduced-motion:reduce){.toast{animation:none}.card{transition:none}}
+/* ---------- Mobile : passage en paysage ---------- */
+#rotate{display:none}
+@media (orientation:portrait) and (pointer:coarse){
+  #rotate{display:flex;position:fixed;inset:0;z-index:999;background:var(--ink);color:var(--cream);
+    align-items:center;justify-content:center;text-align:center;padding:24px;
+    font-family:var(--f-ui);font-size:22px;letter-spacing:.04em;line-height:1.4}
+}
 </style>
+<script>
+// Sur téléphone : plein écran + verrouillage en paysage au premier toucher (Android).
+// iPhone ne permet pas de verrouiller l'orientation depuis le navigateur : l'écran invite alors à tourner le téléphone.
+(function(){
+  if (!matchMedia('(pointer:coarse)').matches) return;
+  async function goLandscape(){
+    try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); } catch(e) {}
+    try { await screen.orientation.lock('landscape'); } catch(e) {}
+  }
+  document.addEventListener('pointerdown', goLandscape, {once:true, capture:true});
+})();
+</script>
 </head><body>
 
 
+<div id="rotate">Tourne ton téléphone en mode paysage pour jouer&nbsp;🐎</div>
 <div id="stage"></div>
 
 <div class="hud" id="hudTL" hidden>
