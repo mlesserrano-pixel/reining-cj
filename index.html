@@ -262,7 +262,7 @@ td small{display:block;font-family:var(--f-body);font-size:12.5px;color:#6b4a2d;
       </div>
       <div>
         <h2>Un mot sur les chevaux</h2>
-        <p>Les fiches viennent du Western Ride Log. Les robes de Bambi, Shérif, Swift et Cameron sont devinées faute de photo exploitable. Appache a été raccompagné vers le dressage.</p>
+        <p>Les fiches viennent du Western Ride Log. Les robes de Bambi, Shérif, Swift et Cameron sont devinées faute de photo exploitable.</p>
         <p>Modèle 3D du cheval : <a href="https://sketchfab.com/3d-models/horse-realistic-3d-model-demo-free-65d6a70a6721495f938c93e80a5998e4" target="_blank" rel="noopener" style="color:var(--sand)">HORSE - Realistic 3D Model (DEMO FREE)</a> par WildMesh 3D, sous licence <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener" style="color:var(--sand)">CC BY-NC 4.0</a>, recoloré pour chaque cheval. Usage non commercial uniquement.</p>
         <p>Animations : pack complet « Horse » de WildMesh 3D (repos, pas, trot, galops, pivots), reporté sur le cheval du jeu.</p>
       </div>
@@ -290,7 +290,7 @@ td small{display:block;font-family:var(--f-body);font-size:12.5px;color:#6b4a2d;
 <script>
 'use strict';
 /* =========================================================
-   Données chevaux (Western Ride Log, sans Appache)
+   Données chevaux (Western Ride Log)
    ========================================================= */
 const HORSES = [
  {name:'Bambi', breed:'Paint horse', robe:'Pie alezan crins lavés', born:2010,
@@ -352,6 +352,14 @@ const HORSES = [
   text:"Très bon cheval, très sensible : main légère obligatoire, sinon il surréagit à la rêne.",
   st:{speed:.8,sens:.92,stop:.82,spin:.82,roll:.84,change:.78}, dis:{L:.04,R:.04}, need:0, speedMul:1, sensitive:true,
   coat:{type:'solid', base:'#b4663a', mane:'#c08752', face:'blaze', faceW:.04, socks:{lf:.16,rf:.16,lh:.22,rh:.22}}},
+ {name:'Appache', breed:'Pure race espagnole', robe:'Grise', born:null,
+  text:"Le cheval le plus rapide du club. Fiche à compléter.",
+  st:{speed:.97,sens:.6,stop:.6,spin:.6,roll:.6,change:.6}, dis:{L:.05,R:.05}, need:0, speedMul:1.15,
+  coat:{type:'solid', base:'#d6d3cd', mane:'#55524e', hair:'#5a5753', poll:'#55524e', tail:'#6a6661', tailTip:'#c4bfb6', pink:true}},
+ {name:'Rio', breed:'Quarter horse', robe:'Palomino', born:null,
+  text:"Fiche à compléter.",
+  st:{speed:.7,sens:.65,stop:.7,spin:.7,roll:.7,change:.65}, dis:{L:.05,R:.05}, need:0, speedMul:1,
+  coat:{type:'solid', base:'#d9b26f', mane:'#f1e6c9', hair:'#efe2c2', tail:'#ece0c0', tailTip:'#f6efdc', face:'blaze', faceW:.03}},
 ];
 
 const GAITS = ['Arrêt','Pas','Jog','Trot allongé','Petit galop','Galop allongé'];
