@@ -149,6 +149,14 @@ kbd{font-family:var(--f-ui);font-weight:600;font-size:13px;padding:1px 6px;borde
 .padR{grid-template-columns:repeat(2,74px)}
 @media (pointer:coarse){#touch{display:flex} #legend{display:none} #toasts{bottom:calc(env(safe-area-inset-bottom,0px) + 200px)} #topBtns{bottom:auto;top:calc(env(safe-area-inset-top,0px) + 262px)}}
 @media (max-width:640px){ #minimap{width:84px;height:168px} #hudTL{max-width:calc(100vw - 120px)} .hname{font-size:18px} #pattern{min-width:0} }
+/* Téléphone : carte plus petite en haut à droite, boutons en haut au centre, cartouche Tuto réduit de 40 % */
+@media (pointer:coarse){
+  #hudTL{zoom:.6}
+  #hudTR{top:calc(env(safe-area-inset-top,0px) + 8px);right:max(8px, env(safe-area-inset-right,0px))}
+  #minimap{width:58px;height:116px}
+  #topBtns{top:calc(env(safe-area-inset-top,0px) + 10px);left:50%;right:auto;bottom:auto;transform:translateX(-50%);gap:6px}
+  #topBtns .mini{font-size:12px;padding:5px 8px}
+}
 
 /* ---------- Feuille de juge ---------- */
 #sheet{position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:rgba(10,5,0,.72);
